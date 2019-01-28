@@ -12,7 +12,7 @@ conference.
 
 Eclipser currently supports Linux ELF binaries, and has been tested on Debian
 and Ubuntu. Eclipser is written in F# and runs on .NET Core. Also, Eclipser
-performs program instrumentation ased on QEMU code.
+performs program instrumentation based on QEMU code.
 
 1. Install dependencies
 
@@ -182,7 +182,7 @@ programs, in [examples](./examples) directory.
 # Docker
 
 We also provide a Docker image to run the experiments in our paper, in
-[EclipserArtifact](https://github.com/SoftSec-KAIST/EclipserArtifact)
+[Eclipser-Artifact](https://github.com/SoftSec-KAIST/Eclipser-Artifact)
 repository.
 
 # Supported Architectures
