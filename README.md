@@ -1,18 +1,18 @@
 Eclipser
-=======
+========
 
 Eclipser is a binary-based fuzz testing tool that improves upon classic
 coverage-based fuzzing by leveraging a novel technique called *grey-box concolic
 testing*. The details of the technique can be found in our paper "Grey-box
-Concolic Testing on Binary Code", which will appear in ICSE 2019. Current code
-is a prototype version of our system, and we will release an official version of
-Eclipser around ICSE 2019 conference.
+Concolic Testing on Binary Code", which will appear in ICSE 2019. This is a
+prerelease of our tool, and we will release a stable version by the ICSE 2019
+conference.
 
 # Installation
 
 Eclipser currently supports Linux ELF binaries, and has been tested on Debian
-and Ubuntu. Eclipser is written in F# and runs on .NET Core. Also, Eclipser uses
-program instrumentation based on QEMU code.
+and Ubuntu. Eclipser is written in F# and runs on .NET Core. Also, Eclipser
+performs program instrumentation ased on QEMU code.
 
 1. Install dependencies
 
@@ -196,5 +196,5 @@ Eclipser.
 # Known issue
 
 Eclipser currently do not strictly comply with the provided time limit, and may
-run a little bit longer than the specified time limit. This issue will be fixed
-soon.
+run a little bit longer than the specified time limit. We will fix this issue in
+our stable release.
