@@ -1,0 +1,256 @@
+--- qemu-2.3.0-syscall/linux-user/syscall.c.orig	2018-05-24 11:30:49.611769286 +0900
++++ qemu-2.3.0-syscall/linux-user/syscall.c	2018-05-24 11:30:45.659813975 +0900
+@@ -115,6 +115,37 @@
+ 
+ #include "qemu.h"
+ 
++extern void chatkey_pre_syscall(int num, abi_long arg1, abi_long arg2);
++extern void chatkey_post_syscall(int num, abi_long arg1, abi_long arg2, abi_long ret);
++extern void chatkey_exit(void);
++extern void chatkey_close_fp(void);
++
++int check_executable(const char* filename);
++
++int check_executable(const char* filename) {
++  int fd, size, tmp;
++  if (eaccess(filename, R_OK) == 0 && eaccess(filename, X_OK == 0)) {
++    fd = open(filename, O_RDONLY);
++    if (fd < 0)
++      return -1;
++    size = lseek(fd, 0, SEEK_END);
++    lseek(fd, 0, SEEK_SET);
++    if (size < 4) {
++      close(fd);
++      return -1;
++    }
++    if (read(fd, &tmp, 4) != 4) {
++      close(fd);
++      return -1;
++    }
++    close(fd);
++    if (tmp == 0x464c457f)
++      return 0;
++  }
++
++  return -1;
++}
++
+ #define CLONE_NPTL_FLAGS2 (CLONE_SETTLS | \
+     CLONE_PARENT_SETTID | CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)
+ 
+@@ -846,7 +877,7 @@
+ {
+     abi_ulong target_rlim_swap;
+     rlim_t result;
+-    
++
+     target_rlim_swap = tswapal(target_rlim);
+     if (target_rlim_swap == TARGET_RLIM_INFINITY)
+         return RLIM_INFINITY;
+@@ -854,7 +885,7 @@
+     result = target_rlim_swap;
+     if (target_rlim_swap != (rlim_t)result)
+         return RLIM_INFINITY;
+-    
++
+     return result;
+ }
+ 
+@@ -862,13 +893,13 @@
+ {
+     abi_ulong target_rlim_swap;
+     abi_ulong result;
+-    
++
+     if (rlim == RLIM_INFINITY || rlim != (abi_long)rlim)
+         target_rlim_swap = TARGET_RLIM_INFINITY;
+     else
+         target_rlim_swap = rlim;
+     result = tswapal(target_rlim_swap);
+-    
++
+     return result;
+ }
+ 
+@@ -1183,9 +1214,9 @@
+     abi_ulong target_cmsg_addr;
+     struct target_cmsghdr *target_cmsg;
+     socklen_t space = 0;
+-    
++
+     msg_controllen = tswapal(target_msgh->msg_controllen);
+-    if (msg_controllen < sizeof (struct target_cmsghdr)) 
++    if (msg_controllen < sizeof (struct target_cmsghdr))
+         goto the_end;
+     target_cmsg_addr = tswapal(target_msgh->msg_control);
+     target_cmsg = lock_user(VERIFY_READ, target_cmsg_addr, msg_controllen, 1);
+@@ -1255,7 +1286,7 @@
+     socklen_t space = 0;
+ 
+     msg_controllen = tswapal(target_msgh->msg_controllen);
+-    if (msg_controllen < sizeof (struct target_cmsghdr)) 
++    if (msg_controllen < sizeof (struct target_cmsghdr))
+         goto the_end;
+     target_cmsg_addr = tswapal(target_msgh->msg_control);
+     target_cmsg = lock_user(VERIFY_WRITE, target_cmsg_addr, msg_controllen, 0);
+@@ -4293,7 +4324,7 @@
+     }
+     unlock_user_struct(target_ldt_info, ptr, 1);
+ 
+-    if (ldt_info.entry_number < TARGET_GDT_ENTRY_TLS_MIN || 
++    if (ldt_info.entry_number < TARGET_GDT_ENTRY_TLS_MIN ||
+         ldt_info.entry_number > TARGET_GDT_ENTRY_TLS_MAX)
+            return -TARGET_EINVAL;
+     seg_32bit = ldt_info.flags & 1;
+@@ -4371,7 +4402,7 @@
+     lp = (uint32_t *)(gdt_table + idx);
+     entry_1 = tswap32(lp[0]);
+     entry_2 = tswap32(lp[1]);
+-    
++
+     read_exec_only = ((entry_2 >> 9) & 1) ^ 1;
+     contents = (entry_2 >> 10) & 3;
+     seg_not_present = ((entry_2 >> 15) & 1) ^ 1;
+@@ -4387,8 +4418,8 @@
+         (read_exec_only << 3) | (limit_in_pages << 4) |
+         (seg_not_present << 5) | (useable << 6) | (lm << 7);
+     limit = (entry_1 & 0xffff) | (entry_2  & 0xf0000);
+-    base_addr = (entry_1 >> 16) | 
+-        (entry_2 & 0xff000000) | 
++    base_addr = (entry_1 >> 16) |
++        (entry_2 & 0xff000000) |
+         ((entry_2 & 0xff) << 16);
+     target_ldt_info->base_addr = tswapal(base_addr);
+     target_ldt_info->limit = tswap32(limit);
+@@ -4572,6 +4603,7 @@
+         ret = fork();
+         if (ret == 0) {
+             /* Child Process.  */
++            chatkey_close_fp();
+             rcu_after_fork();
+             cpu_clone_regs(env, newsp);
+             fork_end(1);
+@@ -5532,6 +5564,8 @@
+     if(do_strace)
+         print_syscall(num, arg1, arg2, arg3, arg4, arg5, arg6);
+ 
++    chatkey_pre_syscall(num, arg1, arg2);
++
+     switch(num) {
+     case TARGET_NR_exit:
+         /* In old applications this may be used to implement _exit(2).
+@@ -5561,6 +5595,7 @@
+ #ifdef TARGET_GPROF
+         _mcleanup();
+ #endif
++        chatkey_exit();
+         gdb_exit(cpu_env, arg1);
+         _exit(arg1);
+         ret = 0; /* avoid warning */
+@@ -5749,10 +5784,21 @@
+             }
+             if (!(p = lock_user_string(arg1)))
+                 goto execve_efault;
+-            ret = get_errno(execve(p, argp, envp));
+-            unlock_user(p, arg1, 0);
+-
+-            goto execve_end;
++            /* If execve() call is expected to successfully load and execute the
++             * specified program, call chatkey_exit() and abort, since the newly
++             * executed program is not out target. Also, if the new program is
++             * loaded and executed, it often ignores SIGTERM signal sent from
++             * the driver, and Chatkey falls into infinite loop. */
++            if (check_executable(p) != 0) {
++                unlock_user(p, arg1, 0);
++                goto execve_efault;
++            }
++            chatkey_exit();
++            exit(0);
++            //ret = get_errno(execve(p, argp, envp));
++            //unlock_user(p, arg1, 0);
++            //
++            //goto execve_end;
+ 
+         execve_efault:
+             ret = -TARGET_EFAULT;
+@@ -7422,6 +7468,7 @@
+ #ifdef TARGET_GPROF
+         _mcleanup();
+ #endif
++        chatkey_exit();
+         gdb_exit(cpu_env, arg1);
+         ret = get_errno(exit_group(arg1));
+         break;
+@@ -8316,7 +8363,7 @@
+         break;
+ #if defined(TARGET_NR_fchownat)
+     case TARGET_NR_fchownat:
+-        if (!(p = lock_user_string(arg2))) 
++        if (!(p = lock_user_string(arg2)))
+             goto efault;
+         ret = get_errno(fchownat(arg1, p, low2highuid(arg3),
+                                  low2highgid(arg4), arg5));
+@@ -8801,7 +8848,7 @@
+         case TARGET_F_GETLK64:
+ #ifdef TARGET_ARM
+             if (((CPUARMState *)cpu_env)->eabi) {
+-                if (!lock_user_struct(VERIFY_READ, target_efl, arg3, 1)) 
++                if (!lock_user_struct(VERIFY_READ, target_efl, arg3, 1))
+                     goto efault;
+                 fl.l_type = tswap16(target_efl->l_type);
+                 fl.l_whence = tswap16(target_efl->l_whence);
+@@ -8812,7 +8859,7 @@
+             } else
+ #endif
+             {
+-                if (!lock_user_struct(VERIFY_READ, target_fl, arg3, 1)) 
++                if (!lock_user_struct(VERIFY_READ, target_fl, arg3, 1))
+                     goto efault;
+                 fl.l_type = tswap16(target_fl->l_type);
+                 fl.l_whence = tswap16(target_fl->l_whence);
+@@ -8825,7 +8872,7 @@
+ 	    if (ret == 0) {
+ #ifdef TARGET_ARM
+                 if (((CPUARMState *)cpu_env)->eabi) {
+-                    if (!lock_user_struct(VERIFY_WRITE, target_efl, arg3, 0)) 
++                    if (!lock_user_struct(VERIFY_WRITE, target_efl, arg3, 0))
+                         goto efault;
+                     target_efl->l_type = tswap16(fl.l_type);
+                     target_efl->l_whence = tswap16(fl.l_whence);
+@@ -8836,7 +8883,7 @@
+                 } else
+ #endif
+                 {
+-                    if (!lock_user_struct(VERIFY_WRITE, target_fl, arg3, 0)) 
++                    if (!lock_user_struct(VERIFY_WRITE, target_fl, arg3, 0))
+                         goto efault;
+                     target_fl->l_type = tswap16(fl.l_type);
+                     target_fl->l_whence = tswap16(fl.l_whence);
+@@ -8852,7 +8899,7 @@
+         case TARGET_F_SETLKW64:
+ #ifdef TARGET_ARM
+             if (((CPUARMState *)cpu_env)->eabi) {
+-                if (!lock_user_struct(VERIFY_READ, target_efl, arg3, 1)) 
++                if (!lock_user_struct(VERIFY_READ, target_efl, arg3, 1))
+                     goto efault;
+                 fl.l_type = tswap16(target_efl->l_type);
+                 fl.l_whence = tswap16(target_efl->l_whence);
+@@ -8863,7 +8910,7 @@
+             } else
+ #endif
+             {
+-                if (!lock_user_struct(VERIFY_READ, target_fl, arg3, 1)) 
++                if (!lock_user_struct(VERIFY_READ, target_fl, arg3, 1))
+                     goto efault;
+                 fl.l_type = tswap16(target_fl->l_type);
+                 fl.l_whence = tswap16(target_fl->l_whence);
+@@ -9819,6 +9866,9 @@
+         ret = -TARGET_ENOSYS;
+         break;
+     }
++
++    chatkey_post_syscall(num, arg1, arg2, ret);
++
+ fail:
+ #ifdef DEBUG
+     gemu_log(" = " TARGET_ABI_FMT_ld "\n", ret);

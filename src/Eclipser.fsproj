@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Core/Config.fs" />
+    <Compile Include="Core/Utils.fs" />
+    <Compile Include="Core/BytesUtils.fs" />
+    <Compile Include="Core/Typedef.fs" />
+    <Compile Include="Core/Queue.fs" />
+    <Compile Include="Core/ByteVal.fs" />
+    <Compile Include="Core/Input.fs" />
+    <Compile Include="Core/Seed.fs" />
+    <Compile Include="Core/TestCase.fs" />
+    <Compile Include="Fuzz/Options.fs" />
+    <Compile Include="Executor/Signal.fs" />
+    <Compile Include="Executor/Syscall.fs" />
+    <Compile Include="Main/System.fs" />
+    <Compile Include="Fuzz/GreyConcolic/BranchInfo.fs" />
+    <Compile Include="Executor/Executor.fs" />
+    <Compile Include="Fuzz/Manager.fs" />
+    <Compile Include="Fuzz/GreyConcolic/BranchTrace.fs" />
+    <Compile Include="Fuzz/GreyConcolic/Linearity.fs" />
+    <Compile Include="Fuzz/GreyConcolic/LinearEquation.fs" />
+    <Compile Include="Fuzz/GreyConcolic/LinearInequality.fs" />
+    <Compile Include="Fuzz/GreyConcolic/Monotonicity.fs" />
+    <Compile Include="Fuzz/GreyConcolic/BranchTree.fs" />
+    <Compile Include="Fuzz/GreyConcolic/Condition.fs" />
+    <Compile Include="Fuzz/GreyConcolic/BranchCondition.fs" />
+    <Compile Include="Fuzz/GreyConcolic/GreyConcolic.fs" />
+    <Compile Include="Fuzz/SeedQueue.fs" />
+    <Compile Include="Fuzz/RandomFuzz.fs" />
+    <Compile Include="Fuzz/Fuzz.fs" />
+    <Compile Include="Main/Decode.fs" />
+    <Compile Include="Main/Replay.fs" />
+    <Compile Include="Main/Main.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="4.3.2" />
+    <PackageReference Include="Argu" Version="5.1.0" />
+    <PackageReference Include="FSharp.Data" Version="3.0.0" />
+    <PackageReference Include="FsPickler" Version="5.2" />
+    <PackageReference Include="MathNet.Numerics" Version="4.4.0" />
+  </ItemGroup>
+
+
+</Project>

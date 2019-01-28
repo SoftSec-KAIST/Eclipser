@@ -1,0 +1,11 @@
+--- qemu-2.3.0/scripts/texi2pod.pl.orig	2018-09-14 14:21:57.762531279 +0900
++++ qemu-2.3.0/scripts/texi2pod.pl	2018-09-14 14:22:08.914429351 +0900
+@@ -317,7 +317,7 @@
+ 	@columns = ();
+ 	for $column (split (/\s*\@tab\s*/, $1)) {
+ 	    # @strong{...} is used a @headitem work-alike
+-	    $column =~ s/^\@strong{(.*)}$/$1/;
++	    $column =~ s/^\@strong\{(.*)\}$/$1/;
+ 	    push @columns, $column;
+ 	}
+ 	$_ = "\n=item ".join (" : ", @columns)."\n";

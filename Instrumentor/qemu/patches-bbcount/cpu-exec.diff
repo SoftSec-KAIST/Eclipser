@@ -1,0 +1,45 @@
+--- qemu-2.3.0-bbcount/cpu-exec.c.orig	2018-09-20 11:06:01.755270480 +0900
++++ qemu-2.3.0-bbcount/cpu-exec.c	2018-09-20 11:04:41.340342516 +0900
+@@ -28,6 +28,11 @@
+ #include "exec/memory-internal.h"
+ #include "qemu/rcu.h"
+ 
++extern abi_ulong chatkey_entry_point;
++extern void chatkey_setup(void);
++extern void chatkey_log_bb(abi_ulong addr);
++extern void chatkey_update_path_hash(abi_ulong addr);
++
+ /* -icount align implementation. */
+ 
+ typedef struct SyncClocks {
+@@ -492,6 +497,14 @@
+                     next_tb = 0;
+                     tcg_ctx.tb_ctx.tb_invalidated_flag = 0;
+                 }
++
++                if(tb->pc == chatkey_entry_point) {
++                  chatkey_setup();
++                }
++
++                chatkey_log_bb(tb->pc);
++                chatkey_update_path_hash(tb->pc);
++
+                 if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
+                     qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",
+                              tb->tc_ptr, tb->pc, lookup_symbol(tb->pc));
+@@ -499,10 +512,11 @@
+                 /* see if we can patch the calling TB. When the TB
+                    spans two pages, we cannot safely do a direct
+                    jump. */
+-                if (next_tb != 0 && tb->page_addr[1] == -1) {
+-                    tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
+-                                next_tb & TB_EXIT_MASK, tb);
+-                }
++                // XXX: chatkey
++                //if (next_tb != 0 && tb->page_addr[1] == -1) {
++                //    tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
++                //                next_tb & TB_EXIT_MASK, tb);
++                //}
+                 have_tb_lock = false;
+                 spin_unlock(&tcg_ctx.tb_ctx.tb_lock);
+ 

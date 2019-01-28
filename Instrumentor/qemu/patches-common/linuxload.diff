@@ -1,0 +1,22 @@
+--- qemu-2.3.0/linux-user/linuxload.c.orig	2017-08-14 23:47:29.085927995 +0900
++++ qemu-2.3.0/linux-user/linuxload.c	2017-08-15 20:31:35.170619303 +0900
+@@ -114,6 +114,9 @@
+         put_user_ual(stringp, argv);
+         argv += n;
+         stringp += target_strlen(stringp) + 1;
++        if ((stringp & 0x3f) != 0) {
++          stringp += 0x40 - (stringp & 0x3f);
++        }
+     }
+     ts->info->arg_end = stringp;
+     /* FIXME - handle put_user() failures */
+@@ -123,6 +126,9 @@
+         put_user_ual(stringp, envp);
+         envp += n;
+         stringp += target_strlen(stringp) + 1;
++        if ((stringp & 0x3f) != 0) {
++          stringp += 0x40 - (stringp & 0x3f);
++        }
+     }
+     /* FIXME - handle put_user() failures */
+     put_user_ual(0, envp);

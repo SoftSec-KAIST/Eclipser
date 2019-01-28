@@ -1,0 +1,20 @@
+--- qemu-2.3.0-pathcov/Makefile.target	2015-04-27 23:08:23.000000000 +0900
++++ qemu-2.3.0-pathcov-new/Makefile.target	2016-07-12 15:54:44.666065500 +0900
+@@ -11,7 +11,7 @@
+ endif
+ QEMU_CFLAGS += -I.. -I$(SRC_PATH)/target-$(TARGET_BASE_ARCH) -DNEED_CPU_H
+
+-QEMU_CFLAGS+=-I$(SRC_PATH)/include
++QEMU_CFLAGS+=-I$(SRC_PATH)/include -I$(SRC_PATH)/../../sparsehash/sparsehash-2.0.3/src -I$(SRC_PATH)/../../sparsehash/build/src
+
+ ifdef CONFIG_USER_ONLY
+ # user emulator name
+@@ -82,7 +82,7 @@
+ 
+ #########################################################
+ # cpu emulator library
+-obj-y = exec.o translate-all.o cpu-exec.o
++obj-y = exec.o translate-all.o cpu-exec.o chatkey.o
+ obj-y += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o
+ obj-$(CONFIG_TCG_INTERPRETER) += tci.o
+ obj-$(CONFIG_TCG_INTERPRETER) += disas/tci.o
