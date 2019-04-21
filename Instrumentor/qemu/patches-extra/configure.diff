@@ -1,0 +1,51 @@
+diff --git a/configure b/configure
+index 218df87d21..58a33c71ad 100755
+--- a/configure
++++ b/configure
+@@ -4746,6 +4746,20 @@ if test "$modules" = "yes" && test "$LD_REL_FLAGS" = ""; then
+ fi
+ 
+ ##########################################
++# check for sysmacros.h
++
++have_sysmacros=no
++cat > $TMPC << EOF
++#include <sys/sysmacros.h>
++int main(void) {
++    return makedev(0, 0);
++}
++EOF
++if compile_prog "" "" ; then
++    have_sysmacros=yes
++fi
++
++##########################################
+ # End of CC checks
+ # After here, no more $cc or $ld runs
+ 
+@@ -5721,6 +5735,10 @@ if test "$have_af_vsock" = "yes" ; then
+   echo "CONFIG_AF_VSOCK=y" >> $config_host_mak
+ fi
+ 
++if test "$have_sysmacros" = "yes" ; then
++  echo "CONFIG_SYSMACROS=y" >> $config_host_mak
++fi
++
+ # Hold two types of flag:
+ #   CONFIG_THREAD_SETNAME_BYTHREAD  - we've got a way of setting the name on
+ #                                     a thread we have a handle to
+diff --git a/include/sysemu/os-posix.h b/include/sysemu/os-posix.h
+index b0a6c0695b..900bdcb45a 100644
+--- a/include/sysemu/os-posix.h
++++ b/include/sysemu/os-posix.h
+@@ -34,6 +34,10 @@
+ #include <netdb.h>
+ #include <sys/un.h>
+ 
++#ifdef CONFIG_SYSMACROS
++#include <sys/sysmacros.h>
++#endif
++
+ void os_set_line_buffering(void);
+ void os_set_proc_name(const char *s);
+ void os_setup_signal_handling(void);
