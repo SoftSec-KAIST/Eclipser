@@ -214,6 +214,14 @@ patch -p0 <patches-bbcount/main.diff || exit 1
 cp patches-bbcount/chatkey.cc qemu-2.3.0-bbcount/linux-user/
 echo "[+] Patching done."
 
+echo "[*] Applying extra patches..."
+
+cd qemu-2.3.0
+patch -p1 <../patches-extra/configure.diff || exit 1
+cd ..
+
+echo "[+] Patching done."
+
 ### Copy directories, one for x86 and the other for x64
 
 cp -r "qemu-2.3.0-pathcov" "qemu-2.3.0-pathcov-x86"
