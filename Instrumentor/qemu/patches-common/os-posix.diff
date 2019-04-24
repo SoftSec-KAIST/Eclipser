@@ -1,0 +1,13 @@
+--- qemu-2.3.0/include/sysemu/os-posix.h.orig	2015-04-27 23:08:25.000000000 +0900
++++ qemu-2.3.0/include/sysemu/os-posix.h	2019-04-24 16:08:53.331555843 +0900
+@@ -28,6 +28,10 @@
+ 
+ #include <sys/time.h>
+ 
++#ifdef CONFIG_SYSMACROS
++#include <sys/sysmacros.h>
++#endif
++
+ void os_set_line_buffering(void);
+ void os_set_proc_name(const char *s);
+ void os_setup_signal_handling(void);

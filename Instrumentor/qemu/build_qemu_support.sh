@@ -144,6 +144,8 @@ cp qemu-2.3.0/linux-user/signal.c qemu-2.3.0/linux-user/signal.c.orig
 cp qemu-2.3.0/translate-all.c qemu-2.3.0/translate-all.c.orig
 cp qemu-2.3.0/scripts/texi2pod.pl qemu-2.3.0/scripts/texi2pod.pl.orig
 cp qemu-2.3.0/user-exec.c qemu-2.3.0/user-exec.c.orig
+cp qemu-2.3.0/configure qemu-2.3.0/configure.orig
+cp qemu-2.3.0/include/sysemu/os-posix.h qemu-2.3.0/include/sysemu/os-posix.h.orig
 
 echo "[*] Applying common patches..."
 patch -p0 <patches-common/elfload.diff || exit 1
@@ -152,6 +154,8 @@ patch -p0 <patches-common/signal.diff || exit 1
 patch -p0 <patches-common/translate-all.diff || exit 1
 patch -p0 <patches-common/texi2pod.diff || exit 1
 patch -p0 <patches-common/user-exec.diff || exit 1
+patch -p0 <patches-common/os-posix.diff || exit 1
+patch -p0 <patches-common/configure.diff || exit 1
 
 cp -r "qemu-2.3.0" "qemu-2.3.0-pathcov"
 cp -r "qemu-2.3.0" "qemu-2.3.0-syscall"

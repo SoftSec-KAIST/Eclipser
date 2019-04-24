@@ -29,6 +29,8 @@ export_common_patch() {
   cp qemu-2.3.0/translate-all.c ./$TARG_DIR/
   cp qemu-2.3.0/scripts/texi2pod.pl ./$TARG_DIR/scripts/
   cp qemu-2.3.0/user-exec.c ./$TARG_DIR/
+  cp qemu-2.3.0/configure ./$TARG_DIR/
+  cp qemu-2.3.0/include/sysemu/os-posix.h ./$TARG_DIR/include/sysemu/
 }
 
 export_pathcov_patch() {
@@ -85,6 +87,8 @@ cp qemu-2.3.0/linux-user/signal.c.orig qemu-2.3.0/linux-user/signal.c
 cp qemu-2.3.0/translate-all.c.orig qemu-2.3.0/translate-all.c
 cp qemu-2.3.0/scripts/texi2pod.pl.orig qemu-2.3.0/scripts/texi2pod.pl
 cp qemu-2.3.0/user-exec.c.orig qemu-2.3.0/user-exec.c
+cp qemu-2.3.0/configure.orig qemu-2.3.0/configure
+cp qemu-2.3.0/include/sysemu/os-posix.h.orig qemu-2.3.0/include/sysemu/os-posix.h
 
 # Patch
 patch -p0 <patches-common/elfload.diff || exit 1
@@ -93,6 +97,8 @@ patch -p0 <patches-common/signal.diff || exit 1
 patch -p0 <patches-common/translate-all.diff || exit 1
 patch -p0 <patches-common/texi2pod.diff || exit 1
 patch -p0 <patches-common/user-exec.diff || exit 1
+patch -p0 <patches-common/os-posix.diff || exit 1
+patch -p0 <patches-common/configure.diff || exit 1
 
 # Export
 export_common_patch "pathcov" "x86"
