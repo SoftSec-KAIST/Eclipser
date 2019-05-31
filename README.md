@@ -4,9 +4,7 @@ Eclipser
 Eclipser is a binary-based fuzz testing tool that improves upon classic
 coverage-based fuzzing by leveraging a novel technique called *grey-box concolic
 testing*. The details of the technique can be found in our paper "Grey-box
-Concolic Testing on Binary Code", which will appear in ICSE 2019. This is a
-prerelease of our tool, and we will release a stable version by the ICSE 2019
-conference.
+Concolic Testing on Binary Code", which is published in ICSE 2019.
 
 # Installation
 
@@ -192,9 +190,3 @@ have a branch that supports ARM architecture, but do not plan to open source it.
 In default, Eclipser assumes that the target program is an x64 binary. If you
 want to fuzz an x86 binary, you should provide `--architecture x86` option to
 Eclipser.
-
-# Known issue
-
-Eclipser currently do not strictly comply with the provided time limit, and may
-run a little bit longer than the specified time limit. We will fix this issue in
-our stable release.
