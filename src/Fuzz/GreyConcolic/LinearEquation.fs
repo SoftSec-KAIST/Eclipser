@@ -12,7 +12,6 @@ type LinearEquation = {
   Solutions  : bigint list
 }
 
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module LinearEquation =
 
   type Result =

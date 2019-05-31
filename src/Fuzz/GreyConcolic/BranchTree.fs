@@ -1,22 +1,43 @@
 namespace Eclipser
 
+open System.Collections.Generic
+open System.Collections.Immutable
 open Config
 open Utils
 open Options
+
+type SelectSet = ImmutableHashSet<int>
 
 type Condition =
   | LinEq of LinearEquation
   | LinIneq of LinearInequality
   | Mono of Monotonicity
 
-type Branch = Condition * BranchPoint
+type BranchCondition = Condition * BranchPoint
+
+type DistanceSign = Sign
+
+type BranchSeq = {
+  Length : int
+  Branches : (BranchCondition * DistanceSign) list
+}
+
+module BranchSeq =
+  let empty = { Length = 0; Branches = [] }
+
+  let append branchSeq branchCondOpt distSign =
+    match branchCondOpt with
+    | None -> branchSeq
+    | Some branchCond ->
+      let branch = (branchCond, distSign)
+      let newLen = branchSeq.Length + 1
+      let newBranches = branch :: branchSeq.Branches
+      { branchSeq with Length = newLen; Branches = newBranches }
 
 type BranchTree =
-  | Nil
-  | Step of Branch * DistanceSign * BranchTree
-  | Fork of Branch * ((DistanceSign * BranchTree) list)
-  | Diverge of (DistanceSign * BranchTree) list
-and DistanceSign = Sign
+  | Straight of BranchSeq
+  | ForkedTree of BranchSeq * BranchCondition * (DistanceSign * BranchTree) list
+  | DivergeTree of BranchSeq * BranchTree list
 
 module BranchTree =
 
@@ -54,11 +75,8 @@ module BranchTree =
       if Option.isSome linEqOpt then linEqOpt else inferLinEqAux ctx tailCombs
     | [] -> None
 
-  let inferLinEq opt ctx brInfos =
+  let inferLinEq ctx brInfos =
     if checkValidTarget brInfos then
-      if opt.Verbosity >= 4 then
-        let brStr = String.concat ", " (List.map BranchInfo.toString brInfos)
-        log "Infer linearity with : %s" brStr
       genComb brInfos BranchCombinationWindow 3 // XXX
       (* Now convert each [a,b,c] into (a,b,c) *)
       |> List.map (function [ a; b; c ] -> (a,b,c) | _ -> failwith "invalid")
@@ -72,23 +90,16 @@ module BranchTree =
       if Option.isSome linIneq then linIneq else inferLinIneqAux ctx tailCombs
     | [] -> None
 
-  let inferLinIneq opt ctx brInfos =
+  let inferLinIneq ctx brInfos =
     if checkValidTarget brInfos then
-      if opt.Verbosity >= 4 then
-        let brStr = String.concat ", " (List.map BranchInfo.toString brInfos)
-        log "Infer linearity with : %s" brStr
       genComb brInfos BranchCombinationWindow 3 // XXX
       (* Now convert each [a,b,c] into (a,b,c) *)
       |> List.map (function a::b::c::[] -> (a,b,c) | _ -> failwith "invalid")
       |> inferLinIneqAux ctx
     else None
 
-  let inferMonotonicity opt brInfos =
-    if checkValidTarget brInfos then
-      if opt.Verbosity >= 4 then
-        let brStr = String.concat ", " (List.map BranchInfo.toString brInfos)
-        log "Infer monotonicity with : %s" brStr
-      Monotonicity.find brInfos
+  let inferMonotonicity brInfos =
+    if checkValidTarget brInfos then Monotonicity.find brInfos
     else None
 
   let inspectBranchInfos opt ctx visitCntMap branchInfos =
@@ -99,174 +110,209 @@ module BranchTree =
     let targPt = { Addr = targAddr; Idx = targIdx }
     let brType = firstBrInfo.BrType
     if brType = Equality then
-      match inferLinEq opt ctx branchInfos with
+      match inferLinEq ctx branchInfos with
       | Some linEq -> Some (LinEq linEq, targPt)
       | None ->
-        let monoOpt = inferMonotonicity opt branchInfos
+        let monoOpt = inferMonotonicity branchInfos
         Option.map (fun mono -> (Mono mono, targPt)) monoOpt
     else
-      match inferLinIneq opt ctx branchInfos with
+      match inferLinIneq ctx branchInfos with
       | Some linIneq -> Some (LinIneq linIneq, targPt)
       | None -> None
 
-  let rec makeAux opt ctx prevBranchOpt accPairs groupedBranchTrace cont =
-    match groupedBranchTrace with
-    | End -> cont Nil
-    | Unison brInfoSet ->
-      let brInfoSet = BranchTraceSet.updateVisitCount brInfoSet
-      let visitCntMap = brInfoSet.VisitCountMap
-      let brInfos = List.map List.head (brInfoSet.BranchTraceList)
-      let branchOpt = inspectBranchInfos opt ctx visitCntMap brInfos
-      let groupedBranchTrace = BranchTraceSet.stepAndGroup brInfoSet
-      match prevBranchOpt with
-      | None -> makeAux opt ctx branchOpt [] groupedBranchTrace cont
-      | Some branch ->
-        let dist = brInfoSet.LastBranchDistance
-        let distSign =
-          if dist > 0I then Positive
-          elif dist = 0I then Zero
-          else Negative
-        let cont = fun result -> cont (Step (branch, distSign, result))
-        makeAux opt ctx branchOpt [] groupedBranchTrace cont
-    | Split [] ->
-      match prevBranchOpt with
-      | None -> cont (Diverge accPairs)
-      | Some branch -> cont (Fork (branch, accPairs))
-    | Split (branchTraceSet :: tailBranchTraceSets) ->
-      let branchTraceSet = BranchTraceSet.updateVisitCount branchTraceSet
-      let visitCntMap = branchTraceSet.VisitCountMap
-      let branchInfos = List.map List.head (branchTraceSet.BranchTraceList)
-      let branchOpt = inspectBranchInfos opt ctx visitCntMap branchInfos
-      let dist = branchTraceSet.LastBranchDistance
-      let distSign =
-        if dist > 0I then Positive
-        elif dist = 0I then Zero
-        else Negative
-      let groupedBranchTrace = BranchTraceSet.stepAndGroup branchTraceSet
-      makeAux opt ctx branchOpt [] groupedBranchTrace
-        (fun resultTrace ->
-          let accPairs = (distSign, resultTrace) :: accPairs
-          makeAux opt ctx prevBranchOpt accPairs (Split tailBranchTraceSets) cont
-        )
+  let decideSign x =
+    if x > 0I then Positive
+    elif x = 0I then Zero
+    else Negative
 
-  let make opt ctx branchTraces =
-    let branchTraces = List.filter (not << List.isEmpty) branchTraces
-    let branchTraceSet = BranchTraceSet.init branchTraces
-    let groupedBranchTrace = BranchTraceSet.group branchTraceSet
-    makeAux opt ctx None [] groupedBranchTrace identity
+  let haveSameAddr brInfos =
+    match brInfos with
+    | [] -> true
+    | brInfo :: brInfos ->
+      let instAddr = brInfo.InstAddr
+      List.forall (fun br -> br.InstAddr = instAddr) brInfos
 
-  (* Extract linear and monotonic search targets from branch trace, since these
-   * targets do not need execution tree information to solve branch condition.
-   *)
-  let rec extractSimpleConds branchTrace cont =
+  let haveSameBranchDistanceSign brInfos =
+    match brInfos with
+    | [] -> true
+    | brInfo :: brInfos ->
+      let distSign = decideSign brInfo.Distance
+      List.forall (fun br -> decideSign br.Distance = distSign) brInfos
+
+  // Precondition : The first branchInfo of each branch trace should have the
+  // same instuction address. Empty branch trace is not allowed.
+  let rec extractStraightSeq opt ctx visitCntMap brTraceList accBranchSeq =
+    // Split each BranchTrace into a tuple of its head and tail.
+    let headBrInfos = List.map List.head brTraceList
+    let tailBrTraces = List.map List.tail brTraceList
+    if List.length brTraceList < 3 then failwith "Unreachable"
+    if not (haveSameAddr headBrInfos) then failwith "Unreachable"
+    // Leave branch traces which are not empty.
+    let tailBrTraces = List.filter (not << List.isEmpty) tailBrTraces
+    // Now examine the next address and decide whether to continue extracting.
+    if List.length tailBrTraces >= 2 &&
+       not (haveSameAddr (List.map List.head tailBrTraces))
+    then
+      // Pass 'brTraceList', instead of 'tailBrTraces' since we need information
+      // about the branch distance of previous branch before forking.
+      (visitCntMap, brTraceList, accBranchSeq)
+    else
+      let brInfo = List.head headBrInfos
+      let addr = brInfo.InstAddr
+      let cnt = try Map.find addr visitCntMap with :? KeyNotFoundException -> 0
+      let visitCntMap = Map.add addr (cnt + 1) visitCntMap
+      let brCondOpt = inspectBranchInfos opt ctx visitCntMap headBrInfos
+      let distSign = decideSign brInfo.Distance
+      let accBranchSeq = BranchSeq.append accBranchSeq brCondOpt distSign
+      // Stop proceeding if no more than three branch traces are left.
+      if List.length tailBrTraces < 3 then
+        (visitCntMap, [], accBranchSeq)
+      else extractStraightSeq opt ctx visitCntMap tailBrTraces accBranchSeq
+
+  // Precondition : The first branchInfo of each branch trace should have the
+  // same instuction address. Empty branch trace is not allowed.
+  let rec makeAux opt ctx visitCntMap brTraceList =
+    let visitCntMap, brTraceList, branchSeq =
+      extractStraightSeq opt ctx visitCntMap brTraceList BranchSeq.empty
+    // If there are no more branch trace to parse, construct 'Straight' tree.
+    if List.isEmpty brTraceList then
+      Straight branchSeq
+    else
+      // At this point, the first branches info of branch traces have the same
+      // instruction address, and diverge/forks at the next branch.
+      let headBrInfos = List.map List.head brTraceList
+      if not (haveSameAddr headBrInfos) then failwith "Unreachable"
+      // First, fetch the head branch info and infer the branch condition.
+      let brInfo = List.head headBrInfos
+      let addr = brInfo.InstAddr
+      let cnt = try Map.find addr visitCntMap with :? KeyNotFoundException -> 0
+      let visitCntMap = Map.add addr (cnt + 1) visitCntMap
+      let branchCondOpt = inspectBranchInfos opt ctx visitCntMap headBrInfos
+      match branchCondOpt with
+      | None -> // If failed to infer branch condition, handle as a 'diverge'
+        buildDivergeTree opt ctx visitCntMap branchSeq brTraceList
+      | Some branchCond ->
+        if haveSameBranchDistanceSign (List.map List.head brTraceList) then
+          // Fork actually did not occur at this branch condition. Therefore,
+          // append this branch to BranchSeq, and handle as a DivergeTree case.
+          let brTrace = List.head brTraceList
+          let distSign = decideSign (List.head brTrace).Distance
+          let branchSeq = BranchSeq.append branchSeq branchCondOpt distSign
+          buildDivergeTree opt ctx visitCntMap branchSeq brTraceList
+        else buildForkTree opt ctx visitCntMap branchSeq branchCond brTraceList
+
+  and buildDivergeTree opt ctx visitCntMap branchSeq brTraceList =
+    // Now leave branch traces longer than 1, and group by its next InstAddr.
+    let brTraceList = List.filter BranchTrace.isLongerThanOne brTraceList
+    let groupedTraces = List.groupBy BranchTrace.getNextAddr brTraceList
+                        |> List.unzip |> snd
+                        |> List.filter (fun group -> List.length group >= 3)
+    let subTrees = List.map (makeAux opt ctx visitCntMap) groupedTraces
+    if List.isEmpty subTrees then
+      Straight branchSeq
+    else DivergeTree (branchSeq, subTrees)
+
+  and buildForkTree opt ctx visitCntMap branchSeq branchCond brTraceList =
+    // Now leave branch traces longer than 1, and group by its next InstAddr.
+    let brTraceList = List.filter BranchTrace.isLongerThanOne brTraceList
+    // Defer filtering group with no more than three traces.
+    let groupedTraces = List.groupBy BranchTrace.getNextAddr brTraceList
+                        |> List.unzip |> snd
+    let childTrees =
+      List.map (fun brTraceGroup ->
+        let branchTrace = List.head brTraceGroup
+        let distSign = decideSign (List.head branchTrace).Distance
+        let tailBrTraceList = List.map List.tail brTraceGroup
+        let subTree = if List.length tailBrTraceList >= 3 then
+                        makeAux opt ctx visitCntMap tailBrTraceList
+                      else Straight BranchSeq.empty
+        (distSign, subTree)
+      ) groupedTraces
+    ForkedTree (branchSeq, branchCond, childTrees)
+
+  let rec make opt ctx brTraceList =
+    let brTraceList = List.filter (not << List.isEmpty) brTraceList
+    let groupedTraces = List.groupBy BranchTrace.getHeadAddr brTraceList
+                        |> List.unzip |> snd
+                        |> List.filter (fun group -> List.length group >= 3)
+    let subTrees = List.map (makeAux opt ctx Map.empty) groupedTraces
+    match subTrees with
+    | [ subTree ] -> subTree
+    | _ -> DivergeTree (BranchSeq.empty, subTrees)
+
+  let rec sizeOf branchTree =
+    match branchTree with
+    | Straight branchSeq -> branchSeq.Length
+    | DivergeTree (branchSeq, subTrees) ->
+      branchSeq.Length + List.sum (List.map sizeOf subTrees)
+    | ForkedTree (branchSeq, _, childTrees) ->
+      // Let us not count the branch itself at the fork point.
+      let subTrees = snd (List.unzip childTrees)
+      branchSeq.Length + List.sum (List.map sizeOf subTrees)
+
+  let rec reverse branchTrace =
     match branchTrace with
-    | Nil -> cont ([], [])
-    | Step ((LinEq lineq, targPt), _, leftTrace) ->
-      extractSimpleConds leftTrace
-        (fun (eqs, monos) -> cont ((targPt, lineq) :: eqs, monos))
-    | Step ((Mono monotonic, targPt), _, leftTrace) ->
-      extractSimpleConds leftTrace
-        (fun (eqs, monos) -> cont (eqs, ((targPt, monotonic) :: monos)))
-    | Step (_, _, leftTrace) -> extractSimpleConds leftTrace cont
-    | Diverge [] -> cont ([], [])
-    | Diverge ((_, branchTrace) :: tailPairs) ->
-      extractSimpleConds branchTrace
-        (fun (eqs, monos) ->
-          extractSimpleConds (Diverge tailPairs)
-            (fun (eqs', monos') -> cont (eqs @ eqs', monos @ monos'))
-        )
-    | Fork ((LinEq lineq, targPt), []) ->
-      let eqs = [(targPt, lineq)]
-      cont (eqs, [])
-    | Fork ((Mono monotonic, targPt), []) ->
-      let monos = [(targPt, monotonic)]
-      cont ([], monos)
-    | Fork (_, []) -> cont ([], [])
-    | Fork (branch, (_, branchTrace) :: tailPairs) ->
-      extractSimpleConds branchTrace
-        (fun (eqs, monos) ->
-          extractSimpleConds (Fork (branch, tailPairs))
-            (fun (eqs', monos') -> cont (eqs @ eqs', monos @ monos'))
-        )
+    | Straight branchSeq ->
+      let branchSeq = { branchSeq with Branches = List.rev branchSeq.Branches}
+      Straight branchSeq
+    | DivergeTree (branchSeq, subTrees) ->
+      let branchSeq = { branchSeq with Branches = List.rev branchSeq.Branches}
+      let subTrees = List.map reverse subTrees
+      DivergeTree (branchSeq, subTrees)
+    | ForkedTree (branchSeq, brCond, childTrees) ->
+      let branchSeq = { branchSeq with Branches = List.rev branchSeq.Branches}
+      let childTrees = List.map (fun (s, tree) -> (s, reverse tree)) childTrees
+      ForkedTree (branchSeq, brCond, childTrees)
 
-  (* Leave branches with linear inequalities from the given branch trace. *)
-  let rec leaveInequality branchTrace accPairs cont =
+  let rec filterBranchSeqAux (selectSet: SelectSet) counter branches accList =
+    let accBrs, accLen = accList
+    match branches with
+    | [] -> accList
+    | headBranch :: tailBranchList ->
+      let accList = if selectSet.Contains(counter) then
+                      (headBranch :: accBrs, accLen + 1)
+                    else accList
+      filterBranchSeqAux selectSet (counter + 1) tailBranchList accList
+
+  let filterBranchSeq selectSet counter branchSeq =
+    let branches = branchSeq.Branches
+    let newBrs, newLen = filterBranchSeqAux selectSet counter branches  ([], 0)
+    let counter = counter + branchSeq.Length
+    let branchSeq = { branchSeq with Branches = newBrs; Length = newLen}
+    (counter, branchSeq)
+
+  let rec filterAndReverseAux selectSet counter branchTrace =
     match branchTrace with
-    | Nil -> cont Nil
-    | Step ((LinIneq inequality, targPt), distSign, leftTrace) ->
-      leaveInequality leftTrace []
-        (fun trace -> cont (Step ((LinIneq inequality, targPt), distSign, trace)))
-    | Step (_, _, leftTrace) -> leaveInequality leftTrace [] cont
-    | Diverge [] -> cont (Diverge accPairs)
-    | Diverge ((distSign, branchTrace) :: tailPairs) ->
-      leaveInequality branchTrace []
-        (fun trace ->
-          let accPairs = (distSign, trace) :: accPairs
-          leaveInequality (Diverge tailPairs) accPairs cont
-        )
-    | Fork ((LinIneq inequality, targPt), []) ->
-      cont (Fork ((LinIneq inequality, targPt), accPairs))
-    | Fork (_, []) -> cont (Diverge accPairs)
-    | Fork (branch, (distSign, branchTrace) :: tailPairs) ->
-      leaveInequality branchTrace []
-        (fun trace ->
-          let accPairs = (distSign, trace) :: accPairs
-          leaveInequality (Fork (branch, tailPairs)) accPairs cont
-        )
+    | Straight branchSeq ->
+      let counter, branchSeq = filterBranchSeq selectSet counter branchSeq
+      (counter, Straight branchSeq)
+    | DivergeTree (branchSeq, subTrees) ->
+      let counter, branchSeq = filterBranchSeq selectSet counter branchSeq
+      let counter, subTrees =
+        List.fold (fun (counter, accSubTrees) subTree ->
+          let counter, subTree = filterAndReverseAux selectSet counter subTree
+          (counter, subTree :: accSubTrees)
+        ) (counter, []) subTrees
+      (counter, DivergeTree (branchSeq, List.rev subTrees))
+    | ForkedTree (branchSeq, brCond, childTrees) ->
+      let counter, branchSeq = filterBranchSeq selectSet counter branchSeq
+      let counter, childTrees =
+        List.fold (fun (counter, accChildTrees) (sign, subTree) ->
+          let counter, subTree = filterAndReverseAux selectSet counter subTree
+          (counter, (sign, subTree) :: accChildTrees)
+        ) (counter, []) childTrees
+      (counter, ForkedTree (branchSeq, brCond, List.rev childTrees))
 
-  let rec getTraceSize branchTrace accSize cont =
-    match branchTrace with
-    | Nil -> cont accSize
-    | Step (_, _, leftTrace) -> getTraceSize leftTrace (accSize + 1) cont
-    | Diverge [] -> cont accSize
-    | Diverge ((_, branchTrace) :: tailPairs) ->
-      getTraceSize branchTrace 0
-        (fun size ->
-          getTraceSize (Diverge tailPairs) (accSize + size) cont
-        )
-    | Fork (_, []) -> cont (accSize + 1)
-    | Fork (branch, (_, branchTrace) :: tailPairs) ->
-      getTraceSize branchTrace 0
-        (fun size ->
-          getTraceSize (Fork (branch, tailPairs)) (accSize + size) cont
-        )
+  let filterAndReverse selectSet branchTree =
+    let _, filteredBranchTree = filterAndReverseAux selectSet 0 branchTree
+    filteredBranchTree
 
-  let rec filterBranchTrace branchTrace num selectInfo accPairs cont =
-    match branchTrace with
-    | Nil -> cont (num, Nil)
-    | Step (branch, distSign, leftTrace) when Set.contains num selectInfo ->
-      filterBranchTrace leftTrace (num + 1) selectInfo []
-        (fun (num, trace) -> cont (num, Step (branch, distSign, trace)))
-    | Step (_, _, leftTrace) ->
-      filterBranchTrace leftTrace (num + 1) selectInfo [] cont
-    | Diverge [] -> cont (num, Diverge accPairs)
-    | Diverge ((distSign, branchTrace) :: tailPairs) ->
-      filterBranchTrace branchTrace num selectInfo []
-        (fun (num', trace) ->
-          let accPairs = (distSign, trace) :: accPairs
-          let branchTrace' = Diverge tailPairs
-          filterBranchTrace branchTrace' num' selectInfo accPairs cont
-        )
-    | Fork (branch, []) when Set.contains num selectInfo ->
-      cont (num + 1, Fork (branch, accPairs))
-    | Fork (_, []) ->
-      cont (num, Diverge accPairs)
-    | Fork (branch, (distSign, branchTrace) :: tailPairs) ->
-      filterBranchTrace branchTrace num selectInfo []
-        (fun (num', trace) ->
-          let accPairs = (distSign, trace) :: accPairs
-          let branchTrace' = Fork (branch, tailPairs)
-          filterBranchTrace branchTrace' num' selectInfo accPairs cont
-        )
-
-  let selectBranches opt branchTrace =
+  let rec selectAndRepair opt branchTree =
     let selectN = opt.NSolve
-    let size = getTraceSize branchTrace 0 identity
-    if selectN > size then branchTrace else
-      if opt.Verbosity >= 1 && selectN < size then
-        let abandonN = size - selectN
-        log "FYI : abandon %d branch conditions" abandonN
-      let selectInfo = randomSubset size selectN
-      filterBranchTrace branchTrace 0 selectInfo [] identity |> snd
-      //let newSize = getTraceSize branchTraceFiltered 0 identity
-      //log "new size after filtering : %d" newSize
+    let size = sizeOf branchTree
+    if selectN > size then reverse branchTree
+    else
+      let selectSet = randomSubset size selectN
+      filterAndReverse selectSet branchTree
+
+

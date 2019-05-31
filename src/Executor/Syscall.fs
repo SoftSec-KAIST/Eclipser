@@ -11,7 +11,6 @@ type Syscall =
   | Dup of (int * int)
   | Read of int
 
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Syscall =
   let rec checkFileReadAux (filename:string) fdMap syscalls =
     match syscalls with

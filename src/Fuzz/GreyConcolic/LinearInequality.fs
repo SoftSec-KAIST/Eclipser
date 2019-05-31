@@ -12,7 +12,6 @@ type SimpleLinearInequality = {
   SplitPoints : (bigint * bigint) list
 }
 
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module SimpleLinearInequality =
   let toString (linIneq : SimpleLinearInequality) =
     let linearity = linIneq.Linearity
@@ -25,7 +24,6 @@ type LinearInequality = {
   Sign            : Signedness
 }
 
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module LinearInequality =
 
   type Result =

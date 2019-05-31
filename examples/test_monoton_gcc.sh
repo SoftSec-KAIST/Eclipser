@@ -5,5 +5,5 @@ gcc monoton.c -o monoton.bin -static -g || exit 1
 rm -rf box
 mkdir box
 cd box
-dotnet ../../build/Eclipser.dll fuzz -p ../monoton.bin -t 10 -v 1 \
-  --src auto --maxfilelen 12
+dotnet ../../build/Eclipser.dll fuzz -p ../monoton.bin -t 10 -v 1 -o output \
+  --src auto --maxfilelen 16

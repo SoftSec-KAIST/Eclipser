@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <pty.h>
+#include <sys/shm.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
@@ -32,6 +33,7 @@
 #define FEED_FORKSRV_FD      194
 #define FORK_WAIT_MULT  10
 
+static int shm_id;
 static pid_t path_forksrv_pid;
 static int path_fsrv_ctl_fd, path_fsrv_st_fd;
 static pid_t feed_forksrv_pid;
@@ -509,4 +511,13 @@ int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data) {
     } else {
         return 0;
     }
+}
+
+int prepare_shared_mem(void) {
+  shm_id = shmget(IPC_PRIVATE, 0x10000, IPC_CREAT | IPC_EXCL | 0600);
+  return shm_id;
+}
+
+int release_shared_mem(void) {
+  return shmctl(shm_id, IPC_RMID, 0);
 }

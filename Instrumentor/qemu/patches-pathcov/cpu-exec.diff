@@ -1,13 +1,13 @@
---- qemu-2.3.0-pathcov/cpu-exec.c.orig	2017-11-17 14:19:44.965778404 +0900
-+++ qemu-2.3.0-pathcov/cpu-exec.c	2017-11-17 14:16:33.224388713 +0900
+--- qemu-2.3.0-pathcov/cpu-exec.c.orig	2019-02-04 15:58:26.783108755 +0900
++++ qemu-2.3.0-pathcov/cpu-exec.c	2019-02-04 16:01:19.912952716 +0900
 @@ -28,6 +28,14 @@
  #include "exec/memory-internal.h"
  #include "qemu/rcu.h"
  
 +extern abi_ulong chatkey_entry_point; /* ELF entry point (_start) */
-+extern void chatkey_setup(void);
++extern void chatkey_setup_before_forkserver(void);
++extern void chatkey_setup_after_forkserver(void);
 +extern void chatkey_log_bb(abi_ulong addr, abi_ulong callsite);
-+extern void chatkey_update_path_hash(abi_ulong addr);
 +
 +#include "afl-qemu-cpu-inl.h"
 +#include "chatkey-utils.h"
@@ -15,19 +15,18 @@
  /* -icount align implementation. */
  
  typedef struct SyncClocks {
-@@ -36,6 +44,11 @@
+@@ -36,6 +44,10 @@
      int64_t realtime_clock;
  } SyncClocks;
  
 +/* Chatkey */
-+int sensitivity = 0;
 +int is_function_entry = 0;
 +abi_ulong current_function = 0;
 +
  #if !defined(CONFIG_USER_ONLY)
  /* Allow the guest to have a max 3ms advance.
   * The difference between the 2 clocks could therefore
-@@ -296,8 +309,11 @@
+@@ -296,8 +308,11 @@
      }
   not_found:
     /* if no translated code available, then translate it now */
@@ -39,66 +38,19 @@
   found:
      /* Move the last found TB to the head of the list */
      if (likely(*ptb1)) {
-@@ -483,6 +499,7 @@
-                 spin_lock(&tcg_ctx.tb_ctx.tb_lock);
-                 have_tb_lock = true;
-                 tb = tb_find_fast(env);
-+
-                 /* Note: we do it here to avoid a gcc bug on Mac OS X when
-                    doing it in tb_find_slow */
-                 if (tcg_ctx.tb_ctx.tb_invalidated_flag) {
-@@ -492,6 +509,38 @@
+@@ -492,6 +507,15 @@
                      next_tb = 0;
                      tcg_ctx.tb_ctx.tb_invalidated_flag = 0;
                  }
 +
 +                if(tb->pc == chatkey_entry_point) {
-+                  if (getenv("CK_CTX_SENSITIVITY") != NULL) {
-+                    sensitivity = atoi(getenv("CK_CTX_SENSITIVITY"));
-+                  }
++                  chatkey_setup_before_forkserver();
 +                  afl_forkserver(env);
-+                  chatkey_setup();
++                  chatkey_setup_after_forkserver();
 +                }
 +
-+                /* If 'is_function_entry' flag is set, handle it first. This
-+                 * operation should precede chatkey_log_bb().
-+                 */
-+                if (is_function_entry) {
-+                  push(current_function);
-+                  current_function = tb->pc;
-+                  is_function_entry = 0;
-+                }
-+
-+                chatkey_log_bb(tb->pc, fetch_context(sensitivity));
-+                chatkey_update_path_hash(tb->pc);
-+
-+                if (tb->is_call) {
-+                  /* Since we cannot know if the destination of this block's
-+                   * call, just set the 'is_function_entry' flag so it can be
-+                   * handled in the next TB.
-+                   */
-+                  is_function_entry = 1;
-+                }
-+                else if (tb->is_ret) {
-+                  current_function = pop();
-+                }
++                chatkey_log_bb(tb->pc, 0);
 +
                  if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
                      qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",
                               tb->tc_ptr, tb->pc, lookup_symbol(tb->pc));
-@@ -499,10 +548,11 @@
-                 /* see if we can patch the calling TB. When the TB
-                    spans two pages, we cannot safely do a direct
-                    jump. */
--                if (next_tb != 0 && tb->page_addr[1] == -1) {
--                    tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
--                                next_tb & TB_EXIT_MASK, tb);
--                }
-+                // XXX: chatkey
-+                //if (next_tb != 0 && tb->page_addr[1] == -1) {
-+                //    tb_add_jump((TranslationBlock *)(next_tb & ~TB_EXIT_MASK),
-+                //                next_tb & TB_EXIT_MASK, tb);
-+                //}
-                 have_tb_lock = false;
-                 spin_unlock(&tcg_ctx.tb_ctx.tb_lock);
- 

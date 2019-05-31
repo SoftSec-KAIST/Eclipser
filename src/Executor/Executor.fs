@@ -3,6 +3,7 @@ module Eclipser.Executor
 open System
 open System.IO
 open System.Runtime.InteropServices
+open Config
 open Utils
 open Options
 open Syscall
@@ -11,12 +12,37 @@ open TestCase
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
 type Tracer = Coverage | Branch | Syscall | BBCount
 
-/// Execution mode that specifies whether we are executing program for test case
-/// replaying. In replay mode, internal behavior of execution module changes
-/// (see libexec.c file).
-type ExecMode = Replay = 1 | NonReplay = 0
+/// Specifies the method to handle execution timeout. It is necessary to use GDB
+/// when replaying test cases against a gcov-compiled binary, to log coverage
+/// correctly.
+type TimeoutHandling =
+  /// Send SIGTERM to the process
+  | SendSigterm = 0
+  /// Attach to the process with GDB and quit()
+  | GDBQuit = 1
 
-// Constants
+/// Mode of coverage tracer execution.
+type CoverageTracerMode =
+  /// Count the number of new nodes (also obtains a path hash as a by-product)
+  | CountNewNode = 0
+  /// Calculate the hash of node set visitied in this execution
+  | NodeHash = 1
+  /// Find the node set visited in this execution
+  | NodeSet = 2
+
+[<DllImport("libexec.dll")>] extern void set_env (string env_variable, string env_value)
+[<DllImport("libexec.dll")>] extern void initialize_exec (TimeoutHandling is_replay)
+[<DllImport("libexec.dll")>] extern int init_forkserver_coverage (int argc, string[] argv, uint64 timeout)
+[<DllImport("libexec.dll")>] extern int init_forkserver_branch (int argc, string[] argv, uint64 timeout)
+[<DllImport("libexec.dll")>] extern void kill_forkserver ()
+[<DllImport("libexec.dll")>] extern Signal exec (int argc, string[] argv, int stdin_size, byte[] stdin_data, uint64 timeout, bool use_pty)
+[<DllImport("libexec.dll")>] extern Signal exec_fork_coverage (uint64 timeout, int stdin_size, byte[] stdin_data)
+[<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data)
+[<DllImport("libexec.dll")>] extern int prepare_shared_mem ()
+[<DllImport("libexec.dll")>] extern int release_shared_mem ()
+
+(*** Tracer and file paths ***)
+
 let buildDir =
   let exePath = System.Reflection.Assembly.GetEntryAssembly().Location
   System.IO.Path.GetDirectoryName(exePath)
@@ -28,45 +54,6 @@ let syscallTracerX86 = sprintf "%s/qemu-trace-syscall-x86" buildDir
 let syscallTracerX64 = sprintf "%s/qemu-trace-syscall-x64" buildDir
 let bbCountTracerX86 = sprintf "%s/qemu-trace-bbcount-x86" buildDir
 let bbCountTracerX64 = sprintf "%s/qemu-trace-bbcount-x64" buildDir
-let NormalMode = "0"    // Trace both node set & path hash
-let HashOnlyMode = "1"  // Trace path hash only
-let SetOnlyMode = "2"   // Trace node set only
-
-// Mutable variables for statistics and state management
-
-/// Number of total executions from the start of fuzzing.
-let mutable totalExecutions = 0
-/// Number of executions in current phase (i.e. repetition of grey-box concolic
-/// testing or random fuzzing until the allocated resource is exhausted.)
-let mutable phaseExecutions = 0
-let mutable allowedExecutions = 0
-let mutable accumFileLength = 0UL
-
-let mutable forkServerEnabled = false
-let mutable forkedPidCoverage = 0
-let mutable forkedPidBranch = 0
-
-let getTotalExecutions () = totalExecutions
-let getPhaseExecutions () = phaseExecutions
-let getAverageInputLen () = accumFileLength / uint64 totalExecutions
-let allocateResource n = allowedExecutions <- n
-let isResourceExhausted () = allowedExecutions <= 0
-let resetPhaseExecutions () = phaseExecutions <- 0
-let incrExecutionCount () =
-  allowedExecutions <- allowedExecutions - 1
-  totalExecutions <- totalExecutions + 1
-  phaseExecutions <- phaseExecutions + 1
-
-[<DllImport("libexec.dll")>] extern void initialize_exec (ExecMode is_replay)
-[<DllImport("libexec.dll")>] extern int init_forkserver_coverage (int argc, string[] argv, uint64 timeout)
-[<DllImport("libexec.dll")>] extern int init_forkserver_branch (int argc, string[] argv, uint64 timeout)
-[<DllImport("libexec.dll")>] extern void kill_forkserver ()
-[<DllImport("libexec.dll")>] extern Signal exec (int argc, string[] argv, int stdin_size, byte[] stdin_data, uint64 timeout, bool use_pty)
-[<DllImport("libexec.dll")>] extern Signal exec_fork_coverage (uint64 timeout, int stdin_size, byte[] stdin_data)
-[<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data)
-(* Caution : When you use path hash as fitness function of seed, you should set
-  all the environment variables in advance (i.e. in System.initialize function),
-  since number of environment variable affect the program execution path. *)
 
 let selectTracer tracer arch =
   match tracer, arch with
@@ -79,6 +66,71 @@ let selectTracer tracer arch =
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
+let mutable pathHashLog = ""
+let mutable branchTraceLog = ""
+let mutable coverageLog = ""
+let mutable nodeLog = ""
+let mutable syscallTraceLog = ""
+let mutable dbgLog = ""
+
+// TODO : Reorder functions and create a top-level function
+let cleanUpSharedMem () =
+  if release_shared_mem() < 0 then log "Failed to release shared memory!"
+
+let prepareSharedMem () =
+  let shmID = prepare_shared_mem()
+  if shmID < 0 then failwith "Failed to allcate shared memory"
+  set_env("CK_SHM_ID", string shmID)
+
+let initialize outdir verbosity =
+  pathHashLog <- System.IO.Path.Combine(outdir, ".path_hash")
+  branchTraceLog <- System.IO.Path.Combine(outdir, ".branch_trace")
+  coverageLog <- System.IO.Path.Combine(outdir, ".coverage")
+  // 'nodeLog' is managed in tracer side, we just provide a dedicated file path.
+  nodeLog <- System.IO.Path.Combine(outdir, ".node_raw")
+  syscallTraceLog <- System.IO.Path.Combine(outdir, ".syscall_trace")
+  dbgLog <- System.IO.Path.Combine(outdir, ".debug_msg")
+  set_env("CK_HASH_LOG", System.IO.Path.GetFullPath(pathHashLog))
+  set_env("CK_FEED_LOG", System.IO.Path.GetFullPath(branchTraceLog))
+  set_env("CK_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
+  set_env("CK_NODE_LOG", System.IO.Path.GetFullPath(nodeLog))
+  set_env("CK_SYSCALL_LOG", System.IO.Path.GetFullPath(syscallTraceLog))
+  if verbosity >= 2 then
+    set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
+  // Set all the other env. variables in advance, to avoid affecting path hash.
+  set_env("CK_MODE", "0")
+  set_env("CK_FEED_ADDR", "0")
+  set_env("CK_FEED_IDX", "0")
+  set_env("CK_FORK_SERVER", "0") // In default, fork server is not enabled.
+  set_env("CK_CTX_SENSITIVITY", string CtxSensitivity)
+
+let cleanUpFiles () =
+  removeFiles [pathHashLog; branchTraceLog; coverageLog; nodeLog]
+  removeFiles [syscallTraceLog; dbgLog]
+
+(*** Statistics ***)
+
+let mutable totalExecutions = 0
+let mutable phaseExecutions = 0
+
+let getTotalExecutions () = totalExecutions
+let getPhaseExecutions () = phaseExecutions
+let resetPhaseExecutions () = phaseExecutions <- 0
+
+(*** Resource scheduling ***)
+
+let mutable allowedExecutions = 0
+let allocateResource n = allowedExecutions <- n
+let isResourceExhausted () = allowedExecutions <= 0
+let incrExecutionCount () =
+  allowedExecutions <- allowedExecutions - 1
+  totalExecutions <- totalExecutions + 1
+  phaseExecutions <- phaseExecutions + 1
+
+(*** Fork server ***)
+
+let mutable forkServerEnabled = false
+
 let initForkServer opt =
   forkServerEnabled <- true
   set_env("CK_FORK_SERVER", "1")
@@ -90,21 +142,22 @@ let initForkServer opt =
   let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
   if pidCoverage = -1 then
     failwith "Failed to initialize fork server for coverage tracer"
-  else
-    log "Forkserver for coverage tracer : %d" pidCoverage
-    forkedPidCoverage <- pidCoverage
   let branchTracer = selectTracer Branch opt.Architecture
   let args = Array.append [|branchTracer; opt.TargetProg|] initArgs
   let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
   if pidBranch = -1 then
     failwith "Failed to initialize fork server for branch tracer"
-  else
-    log "Forkserver for branch tracer : %d" pidBranch
-    forkedPidBranch <- pidBranch
 
-(* Just a wrapper for consistent naming convention *)
-let terminateForkServer () =
-  kill_forkserver()
+let abandonForkServer () =
+  log "Abandon fork server"
+  forkServerEnabled <- false
+  set_env("CK_FORK_SERVER", "0")
+  kill_forkserver ()
+
+let cleanUpForkServer () =
+  if forkServerEnabled then kill_forkserver ()
+
+(*** File handling utilities ***)
 
 let touchFile filename =
   // Explicitly delete file before creating one, to avoid hanging when the
@@ -117,90 +170,48 @@ let writeFile filename content =
   try System.IO.File.WriteAllBytes(filename, content) with
   | _ -> log "[Warning] Failed to write file '%s'" filename
 
+let readAllLines filename =
+  try List.ofSeq (System.IO.File.ReadLines filename) with
+  | :? System.IO.FileNotFoundException -> []
+
 let isProgPath targetProg argStr =
   try Path.GetFullPath argStr = targetProg with
   | _ -> false
 
 let setupFiles targetProg (tc: TestCase) autoFuzzMode =
-  let args = List.ofArray tc.Args
-  let args' = List.filter (fun arg -> not (isProgPath targetProg arg)) args
-  // Create files with argument strings as name, to identify file input sources.
-  if autoFuzzMode then List.iter (fun arg -> touchFile arg) args
+  let argFiles =
+    if autoFuzzMode then
+      // Create files with argument strings as name, to identify input sources.
+      List.ofArray tc.Args
+      |> List.filter (fun arg -> not (isProgPath targetProg arg))
+      |> (fun args -> List.iter touchFile args; args)
+    else []
   let inputFile = tc.FilePath
   if inputFile <> "" then
     writeFile inputFile tc.FileContent
-    accumFileLength <- accumFileLength + (uint64 tc.FileContent.Length)
-    inputFile :: args'
-  else args'
+    inputFile :: argFiles
+  else argFiles
 
-let clearFiles files =
-  List.iter (fun file -> try System.IO.File.Delete(file) with err -> ()) files
+(*** Tracer result parsing functions ***)
 
-let runTracer (tc:TestCase) tracerType opt =
-  incrExecutionCount ()
-  let targetProg = opt.TargetProg
-  let timeout = opt.ExecTimeout
-  let usePty = opt.UsePty
-  let tracer = selectTracer tracerType opt.Architecture
-  let args = Array.append [|tracer; targetProg|] tc.Args
-  let argc = args.Length
-  exec(argc, args, tc.StdIn.Length, tc.StdIn, timeout, usePty)
-
-let abandonForkServer () =
-  log "Abandon fork server"
-  forkServerEnabled <- false
-  set_env("CK_FORK_SERVER", "0")
-  terminateForkServer ()
-
-let dumpDebugTestcase tc =
-  let filepath = sprintf "%s/debug/tc" sysInfo.["outputDir"]
-  System.IO.File.WriteAllText(filepath, (TestCase.toJSON tc))
-
-let runCoverageTracerForked (tc: TestCase) opt =
-  incrExecutionCount ()
-  let timeout = opt.ExecTimeout
-  let signal = exec_fork_coverage(timeout, tc.StdIn.Length, tc.StdIn)
-  if signal = Signal.ERROR then (abandonForkServer (); dumpDebugTestcase tc)
-  signal
-
-let runBranchTracerForked (tc: TestCase) opt =
-  incrExecutionCount ()
-  let timeout = opt.ExecTimeout
-  let signal = exec_fork_branch(timeout, tc.StdIn.Length, tc.StdIn)
-  if signal = Signal.ERROR then (abandonForkServer (); dumpDebugTestcase tc)
-  signal
-
-let readAllLines filename =
-  try List.ofSeq (System.IO.File.ReadLines filename) with
-  | :? System.IO.FileNotFoundException -> []
-
-let parseCoverage filename =
+let private parseCoverage filename =
   let content = readAllLines filename
   match content with
   | [newNodeCnt; pathHash; nodeHash] ->
     int newNodeCnt, uint64 pathHash, uint64 nodeHash
-  | _ -> (0, 0UL, 0UL)
+  | _ -> log "[Warning] Coverage logging failed : %A" content; (0, 0UL, 0UL)
 
-let parseBBCount filename =
-  let content = readAllLines filename
-  match List.rev content with
-  | _ :: pathLine :: _ :: nodeLine :: _ ->
-    let nodeTokens = nodeLine.Split('(', ')')
-    let pathTokens = pathLine.Split('(', ')')
-    int (nodeTokens.[1].[1 .. ]), int (pathTokens.[1].[1 .. ])
-  | _ -> failwith "Invalid basic block count tracer result"
-
-let parseExecHash filename =
+let private parseExecHash filename =
   let content = readAllLines filename
   match content with
   | [hash] -> uint64 hash
-  | _ -> 0UL
+  | _ -> log "[Warning] Coverage logging failed : %A" content; 0UL
 
-let is64Bit = function
+let private is64Bit = function
   | X86 -> false
   | X64 -> true
 
-let readNodeSet opt filename =
+let private readNodeSet opt filename =
   try
     let f = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)
     use r = new BinaryReader(f)
@@ -216,7 +227,7 @@ let readNodeSet opt filename =
     Set.ofList nodeList
   with | :? FileNotFoundException -> Set.empty
 
-let parseBranchTraceLog opt (r:BinaryReader) tryVal =
+let private parseBranchTraceLog opt (r:BinaryReader) tryVal =
   let arch = opt.Architecture
   let addr =
     try if is64Bit arch then r.ReadUInt64() else uint64 (r.ReadUInt32 ()) with
@@ -245,7 +256,7 @@ let parseBranchTraceLog opt (r:BinaryReader) tryVal =
       Some branchInfo
     with _ -> None
 
-let readBranchTrace opt filename tryVal =
+let private readBranchTrace opt filename tryVal =
   try
     let f = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)
     use r = new BinaryReader(f)
@@ -256,80 +267,100 @@ let readBranchTrace opt filename tryVal =
       | Some branchInfo -> yield branchInfo ]
   with | :? FileNotFoundException -> []
 
-let printNewNodes () =
-  let dbgMsg = readAllLines (sysInfo.["dbgLog"])
-  if not (List.isEmpty dbgMsg) then
-    log "New nodes : [%s]" (String.concat "; " dbgMsg)
+(*** Tracer execute functions ***)
 
-let getExecHash opt seed =
+let private runTracer (tc: TestCase) tracerType opt =
+  incrExecutionCount ()
+  let targetProg = opt.TargetProg
+  let timeout = opt.ExecTimeout
+  let usePty = opt.UsePty
+  let tracer = selectTracer tracerType opt.Architecture
+  let args = Array.append [|tracer; targetProg|] tc.Args
+  let argc = args.Length
+  exec(argc, args, tc.StdIn.Length, tc.StdIn, timeout, usePty)
+
+let private runCoverageTracerForked (tc: TestCase) opt =
+  incrExecutionCount ()
+  let timeout = opt.ExecTimeout
+  let signal = exec_fork_coverage(timeout, tc.StdIn.Length, tc.StdIn)
+  if signal = Signal.ERROR then abandonForkServer ()
+  signal
+
+let private runBranchTracerForked (tc: TestCase) opt =
+  incrExecutionCount ()
+  let timeout = opt.ExecTimeout
+  let signal = exec_fork_branch(timeout, tc.StdIn.Length, tc.StdIn)
+  if signal = Signal.ERROR then abandonForkServer ()
+  signal
+
+(*** Top-level tracer executor functions ***)
+
+let getNodeHash opt seed =
   let tc = TestCase.fromSeed seed
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
-  set_env("CK_MODE", HashOnlyMode)
+  set_env("CK_MODE", string (int CoverageTracerMode.NodeHash))
   let _ = if forkServerEnabled
           then runCoverageTracerForked tc opt
           else runTracer tc Coverage opt
-  let nodeHash = parseExecHash sysInfo.["hashLog"]
-  clearFiles (sysInfo.["hashLog"] :: files)
+  let nodeHash = parseExecHash coverageLog
+  removeFiles files
   nodeHash
 
 let getCoverage opt seed =
   let tc = TestCase.fromSeed seed
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
-  set_env("CK_MODE", NormalMode)
+  set_env("CK_MODE", string (int CoverageTracerMode.CountNewNode))
   let exitSig = if forkServerEnabled
                 then runCoverageTracerForked tc opt
                 else runTracer tc Coverage opt
-  let newNodeCnt, pathHash, nodeHash = parseCoverage sysInfo.["coverageLog"]
-  if opt.Verbosity >= 2 then printNewNodes()
-  clearFiles (sysInfo.["hashLog"] :: sysInfo.["coverageLog"] :: files)
+  let newNodeCnt, pathHash, nodeHash = parseCoverage coverageLog
+  removeFiles files
   (newNodeCnt, pathHash, nodeHash, exitSig)
 
 let getNodeSet opt seed =
   let tc = TestCase.fromSeed seed
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
-  set_env("CK_MODE", SetOnlyMode)
+  set_env("CK_MODE", string (int CoverageTracerMode.NodeSet))
   let _ = if forkServerEnabled
           then runCoverageTracerForked tc opt
           else runTracer tc Coverage opt
-  let nodeSet = readNodeSet opt sysInfo.["coverageLog"]
-  clearFiles (sysInfo.["coverageLog"] :: files)
+  let nodeSet = readNodeSet opt coverageLog
+  removeFiles files
   nodeSet
 
 let getBranchTrace opt seed tryVal =
   let tc = TestCase.fromSeed seed
-  set_env ("CK_FEED_ADDR", "0")
-  set_env ("CK_FEED_IDX", "0")
+  set_env("CK_FEED_ADDR", "0")
+  set_env("CK_FEED_IDX", "0")
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
   let _ = if forkServerEnabled
           then runBranchTracerForked tc opt
           else runTracer tc Branch opt
-  let pathHash = parseExecHash sysInfo.["hashLog"]
-  let branchTrace = readBranchTrace opt sysInfo.["branchLog"] tryVal
-  clearFiles (sysInfo.["hashLog"] :: sysInfo.["branchLog"] :: files)
+  let pathHash = parseExecHash pathHashLog
+  let branchTrace = readBranchTrace opt branchTraceLog tryVal
+  removeFiles (pathHashLog :: branchTraceLog :: files)
   pathHash, branchTrace
 
 let getBranchInfoAt opt seed tryVal targPoint =
   let tc = TestCase.fromSeed seed
-  set_env ("CK_FEED_ADDR", sprintf "%016x" targPoint.Addr)
-  set_env ("CK_FEED_IDX", sprintf "%016x" targPoint.Idx)
+  set_env("CK_FEED_ADDR", sprintf "%016x" targPoint.Addr)
+  set_env("CK_FEED_IDX", sprintf "%016x" targPoint.Idx)
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
   let _ = if forkServerEnabled
           then runBranchTracerForked tc opt
           else runTracer tc Branch opt
-  let pathHash = parseExecHash sysInfo.["hashLog"]
+  let pathHash = parseExecHash pathHashLog
   let branchInfoOpt =
-    match readBranchTrace opt sysInfo.["branchLog"] tryVal with
+    match readBranchTrace opt branchTraceLog tryVal with
     | [] -> None
     | [ branchInfo ] -> Some branchInfo
-    | branchInfos ->
-      let brStrs = String.concat "," (List.map BranchInfo.toString branchInfos)
-      None
-  clearFiles (sysInfo.["hashLog"] :: sysInfo.["branchLog"] :: files)
+    | branchInfos -> None
+  removeFiles (pathHashLog :: branchTraceLog :: files)
   (pathHash, branchInfoOpt)
 
 let getSyscallTrace opt seed =
@@ -337,10 +368,9 @@ let getSyscallTrace opt seed =
   let autoFuzzMode = opt.FuzzMode = AutoFuzz
   let files = setupFiles opt.TargetProg tc autoFuzzMode
   let _ = runTracer tc Syscall opt
-  (* Retrieve syscall tracing info *)
-  let syscallLog = readAllLines sysInfo.["syscallLog"]
-  let inputSrcs = checkInputSource opt.TargetProg tc.Args syscallLog
-  clearFiles (sysInfo.["syscallLog"] :: files)
+  let syscallTrace = readAllLines syscallTraceLog
+  let inputSrcs = checkInputSource opt.TargetProg tc.Args syscallTrace
+  removeFiles (syscallTraceLog :: files)
   inputSrcs
 
 let nativeExecute opt tc =
@@ -352,5 +382,5 @@ let nativeExecute opt tc =
   let args = Array.append [| targetProg |] tc.Args
   let argc = args.Length
   let signal = exec(argc, args, tc.StdIn.Length, tc.StdIn, timeout, usePty)
-  clearFiles files
+  removeFiles files
   signal

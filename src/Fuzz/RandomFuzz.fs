@@ -19,16 +19,11 @@ let HAVOC_BLOCK_MEDIUM = 128
 let HAVOC_BLOCK_LARGE = 1500
 let HAVOC_BLOCK_XLARGE = 32768
 
-// Mutable variables for statistics and state management.
-let mutable private nodeCoverageIncrCount = 0
-let mutable private pathCoverageIncrCount = 0
-let mutable private executions = 0
+// Mutable variables for statistics management.
 let mutable private recentExecNums: Queue<int> = Queue.empty
 let mutable private recentNewPathNums: Queue<int> = Queue.empty
 
 let updateStatus opt execN newPathN =
-  executions <- executions + execN
-  if opt.Verbosity >= 1 then log "Found %d paths (%d execs)" newPathN execN
   let recentExecNums' = if Queue.getSize recentExecNums > RecentRoundN
                         then Queue.drop recentExecNums
                         else recentExecNums
@@ -42,11 +37,6 @@ let evaluateEfficiency () =
   let execNum = List.sum (Queue.elements recentExecNums)
   let newPathNum = List.sum (Queue.elements recentNewPathNums)
   if execNum = 0 then 1.0 else float newPathNum / float execNum
-
-let printStatistics () =
-  log "Executions of random fuzzing phase : %d" executions
-  log "Random fuzzing : Node cov. increase : %d / Path cov. increase = %d"
-    nodeCoverageIncrCount pathCoverageIncrCount
 
 let chooseBlockSize limit =
   // XXX: Original havoc mutation in AFL also depends on queue cycle
@@ -75,7 +65,7 @@ let rec trimAux opt accSeed nodeHash trimMinSize trimSize pos =
     (* Reached end, retry with more fine granularity (reset idx to 0). *)
     trimAux opt accSeed nodeHash trimMinSize (trimSize / 2) 0
   else  let trySeed = Seed.removeBytesFrom accSeed pos trimSize
-        let tryNodeHash = Executor.getExecHash opt trySeed
+        let tryNodeHash = Executor.getNodeHash opt trySeed
         if tryNodeHash = nodeHash then // Trimming succeeded.
           (* Caution : Next trimming  position is not 'pos + trimSize' *)
           trimAux opt trySeed nodeHash trimMinSize trimSize pos
@@ -83,8 +73,7 @@ let rec trimAux opt accSeed nodeHash trimMinSize trimSize pos =
           let newPos = (pos + trimSize)
           trimAux opt accSeed nodeHash trimMinSize trimSize newPos
 
-let trim opt seed =
-  let nodeHash = Executor.getExecHash opt seed
+let trim opt nodeHash seed =
   let inputLen = Seed.getCurInputLen seed
   let inputLenRounded = roundUpExp inputLen
   let trimSize = max (inputLenRounded / TRIM_START_STEPS) TRIM_MIN_BYTES
@@ -100,17 +89,13 @@ let printFoundSeed seed newNodeN =
 
 let evalSeedsAux opt accItems seed =
   let newNodeN, pathHash, nodeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.addSeed opt seed newNodeN pathHash nodeHash exitSig
-  if newNodeN > 0 then nodeCoverageIncrCount <- nodeCoverageIncrCount + 1
-  if isNewPath then pathCoverageIncrCount <- pathCoverageIncrCount + 1
+  let isNewPath = Manager.storeSeed opt seed newNodeN pathHash nodeHash exitSig
   if newNodeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newNodeN
   if isNewPath && not (Signal.isTimeout exitSig) && not (Signal.isCrash exitSig)
   then
     let priority = if newNodeN > 0 then Favored else Normal
     // Trimming is only for seeds that found new nodes
-    let seed' = if newNodeN > 0 then trim opt seed else seed
-    if seed <> seed' && opt.Verbosity >= 1 then
-      log "Trimmed : %s" (Seed.toString seed')
+    let seed' = if newNodeN > 0 then trim opt nodeHash seed else seed
     (priority, seed') :: accItems
   else accItems
 

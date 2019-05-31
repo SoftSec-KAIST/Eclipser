@@ -1,14 +1,12 @@
 namespace Eclipser
 
+open System.Collections.Generic
 open System
 open Utils
 open Options
 open BytesUtils
 
-/// Indicates how the seeds was generated
-type Origin =  Equation | Inequality | Monoton | Spawn
-
-module BranchCondition =
+module GreySolver =
 
   (* Functions related to solving linear equations *)
   let rec findNextCharAux seed opt targPt accStr accBrInfos tryVals =
@@ -24,16 +22,13 @@ module BranchCondition =
       | Some brInfo ->
         let accBrInfos = accBrInfos @ [brInfo]
         let ctx = { Bytes = [| |]; ByteDir = Right }
-        match BranchTree.inferLinEq opt ctx accBrInfos with
+        match BranchTree.inferLinEq ctx accBrInfos with
         | None -> // No linear equation found yet, proceed with more brInfo
           findNextCharAux seed opt targPt accStr accBrInfos tailVals
         | Some linEq -> (* The solution of this equation is next character *)
           match linEq.Solutions with
-          | [] -> failwith "Linear Equation w/ empty solution never generated"
-          | [ sol ] -> Some sol
-          | sol :: _ ->
-            log "Warning : multiple candidates found in string search"
-            Some sol
+          | [] -> failwith "Linear equation w/ empty solution"
+          | sol :: _ -> Some sol
 
   let findNextChar seed opt targPt accStr =
     let sampleVals = sampleInt 0I 255I opt.NSpawn
@@ -62,17 +57,25 @@ module BranchCondition =
     let maxLen = Seed.queryUpdateBound seed Right
     List.fold (tryStrSol seed opt maxLen targPt) accRes initStrs
 
+  let solutionCache = new HashSet<bigint>()
+
+  let clearSolutionCache () =
+    solutionCache.Clear()
+
   let tryChunkSol seed opt dir targPt endian size accRes sol =
-    let tryBytes = bigIntToBytes endian size sol
-    let trySeed = Seed.fixCurBytes seed dir tryBytes
-    // Use dummy value as 'tryVal', since our interest is in branch distance.
-    match Executor.getBranchInfoAt opt trySeed 0I targPt with
-    | pathHash, Some brInfo when brInfo.Distance = 0I ->
-      if Manager.isNewPath pathHash
-      then trySeed :: accRes
-      else accRes
-    | _, Some _ -> accRes // Non-zero branch distance, failed.
-    | _, None -> accRes // Target point disappeared, halt.
+    if solutionCache.Contains(sol) then accRes
+    else
+      let tryBytes = bigIntToBytes endian size sol
+      let trySeed = Seed.fixCurBytes seed dir tryBytes
+      // Use dummy value as 'tryVal', since our interest is branch distance.
+      match Executor.getBranchInfoAt opt trySeed 0I targPt with
+      | pathHash, Some brInfo when brInfo.Distance = 0I ->
+        ignore (solutionCache.Add(sol))
+        if Manager.isNewPath pathHash
+        then trySeed :: accRes
+        else accRes
+      | _, Some _ -> accRes // Non-zero branch distance, failed.
+      | _, None -> accRes // Target point disappeared, halt.
 
   let solveAsChunk seed opt dir targPt linEq accRes =
     let sols = linEq.Solutions
@@ -80,41 +83,14 @@ module BranchCondition =
     let endian = linEq.Endian
     List.fold (tryChunkSol seed opt dir targPt endian size) accRes sols
 
-  let solveEquation seed opt dir accRes (targPt, linEq) =
-    if opt.Verbosity >= 4 then
-      log "Solving @ 0x%x(#%d)" targPt.Addr targPt.Idx
-      log "Linear equation : %s" (LinearEquation.toString linEq)
+  let solveEquation seed opt dir accRes (targPt, linEq: LinearEquation) =
     if linEq.ChunkSize = 1
     then solveAsString seed opt targPt linEq accRes
     else solveAsChunk seed opt dir targPt linEq accRes
 
-  let rec removeDuplicateSolution (linEqs : (BranchPoint * LinearEquation) list)
-     accBrs accSols =
-    match linEqs with
-    | [] -> accBrs
-    | (tarPt, linEq) :: tailLinEqs when linEq.ChunkSize = 1 ->
-      (* We should not filter equations that have 1-byte size solution,
-       * since we will consider these branches as string comparison.
-       *)
-      removeDuplicateSolution tailLinEqs ((tarPt, linEq) :: accBrs) accSols
-    | (tarPt, linEq) :: tailLinEqs ->
-      if Set.contains linEq.Solutions accSols
-      then removeDuplicateSolution tailLinEqs accBrs accSols
-      else
-        let accSols = Set.add linEq.Solutions accSols
-        removeDuplicateSolution tailLinEqs ((tarPt, linEq) :: accBrs) accSols
-
-  let filterEquations opt linEqs =
-    if List.length linEqs > 5000 then linEqs
-    else removeDuplicateSolution linEqs [] Set.empty
-
   let solveEquations seed opt dir linEqs =
     let solveN = opt.NSolve / 3
-    //let linEqs = filterEquations opt linEqs
     let linEqsChosen = randomSelect linEqs solveN
-    if opt.Verbosity >= 1 && solveN < List.length linEqs then
-      let abandonN = List.length linEqs - solveN
-      log "FYI : abandon %d linear equations" abandonN
     List.fold (solveEquation seed opt dir) [] linEqsChosen
     |> List.rev // To preserve original order
 
@@ -127,13 +103,12 @@ module BranchCondition =
     * value it means that Oprnd2 corresponds to the output of the monotonic
     * function, and vice versa.
     *)
-    if BranchInfo.interpretAs sign size brInfo.Oprnd1 = monotonic.TargetVal
+    if BranchInfo.interpretAs sign size brInfo.Oprnd1 = monotonic.TargetY
     then BranchInfo.interpretAs sign size brInfo.Oprnd2
     else BranchInfo.interpretAs sign size brInfo.Oprnd1
 
   let rec binarySearch seed opt dir maxLen targPt accRes mono =
-    let tryVal = (mono.LowerBound + mono.UpperBound) / 2I
-    if opt.Verbosity >= 4 then log "Trying %A" tryVal
+    let tryVal = (mono.LowerX + mono.UpperX) / 2I
     let endian = if dir = Left then LE else BE
     let tryBytes = bigIntToBytes endian mono.ByteLen tryVal
     let trySeed = Seed.fixCurBytes seed dir tryBytes
@@ -152,9 +127,6 @@ module BranchCondition =
       else accRes
 
   let solveMonotonic seed opt accRes (targPt, mono) =
-    if opt.Verbosity >= 4 then
-      log "Solving @ 0x%x(#%d)" targPt.Addr targPt.Idx
-      log "Monotonicity : %s" (Monotonicity.toString mono)
     let maxLenR = Seed.queryUpdateBound seed Right
     let maxLenL = Seed.queryUpdateBound seed Left
     match seed.SourceCursor with
@@ -168,9 +140,6 @@ module BranchCondition =
 
   let solveMonotonics seed opt monotonics =
     let solveN = opt.NSolve / 3
-    if opt.Verbosity >= 1 && solveN < List.length monotonics then
-      let abandonN = List.length monotonics - solveN
-      log "FYI : abandon %d binary search targets" abandonN
     let monosChosen = randomSelect monotonics solveN
     List.fold (solveMonotonic seed opt) [] monosChosen
     |> List.rev // To preserve original order
@@ -281,15 +250,12 @@ module BranchCondition =
       (ineq.ChunkSize, ineq.Endian, splits)
     | None, None -> failwith "Unreachable"
 
-  let extractCond seed opt dir inequality targPt =
-    let size, endian, splitPoints = extractSplitPoint seed opt dir inequality targPt
-    let sign = inequality.Sign
+  let extractCond seed opt dir ineq targPt =
+    let size, endian, splitPoints = extractSplitPoint seed opt dir ineq targPt
+    let sign = ineq.Sign
     let posMSBRanges, negMSBRanges = generateMSBRanges splitPoints size sign
     let posCondition = Constraint.make posMSBRanges endian size
     let negCondition = Constraint.make negMSBRanges endian size
-    //log "Encountered inequality : %s" (LinearInequality.toString inequality)
-    //log "Condition for positive distance : %A" posCondition
-    //log "Condition for negative distance : %A" negCondition
     (posCondition, negCondition)
 
   let updateConditions pc distSign (condP:Constraint) (condN:Constraint) =
@@ -298,17 +264,14 @@ module BranchCondition =
     else (Constraint.conjunction pc condN, Constraint.conjunction pc condP)
 
   let encodeCondition seed opt dir condition =
-    if opt.Verbosity >= 4 then log "Encoding condition called with %A" condition
     if Constraint.isTop condition then []
     elif Seed.queryLenToward seed dir < List.length condition then []
     else
-      if opt.Verbosity >= 4 then log "Encoding condition %A" condition
       let byteConds =
         if dir = Right
         then List.mapi (fun i byteCond -> (i, byteCond)) condition
-        else
-          let len = List.length condition
-          List.mapi (fun i byteCond -> (len - i - 1, byteCond)) condition
+        else let len = List.length condition
+             List.mapi (fun i byteCond -> (len - i - 1, byteCond)) condition
       let newSeeds =
         List.fold (fun accSeeds (offset, byteCond) ->
           if ByteConstraint.isTop byteCond then accSeeds else
@@ -321,75 +284,64 @@ module BranchCondition =
                 let high = if high < 0I then 0uy
                            elif high > 255I then 255uy
                            else byte high
-                List.map
-                  (fun accSeed ->
-                    Seed.constrainByteAt accSeed dir offset low high
-                  ) accSeeds
+                let mapper s = Seed.constrainByteAt s dir offset low high
+                List.map mapper accSeeds
               | Bottom -> []
               | Top -> failwith "Unreachable"
             ) byteCond
           ) [seed] byteConds
-      //log "Encoded seeds"
-      //List.iter (fun s -> log "%s" (Seed.toString s)) newSeeds
       newSeeds
 
+  let solveInequality seed opt dir pc distSign branchPoint ineq =
+    let condP, condN = extractCond seed opt dir ineq branchPoint
+    let accPc, flipCond = updateConditions pc distSign condP condN
+    let seeds = encodeCondition seed opt dir flipCond
+    (accPc, seeds)
 
-  let rec solveBranches seed opt dir pc branchTree =
+  let solveBranchCond seed opt dir (pc: Constraint) branch =
+    let branchCond, distSign = branch
+    let cond, branchPoint = branchCond
+    match cond with
+    | LinEq linEq ->
+      let seeds = solveEquation seed opt dir [] (branchPoint, linEq)
+      (pc, seeds)
+    | Mono mono ->
+      let seeds = solveMonotonic seed opt [] (branchPoint, mono)
+      (pc, seeds)
+    | LinIneq ineq ->
+      let pc, seeds = solveInequality seed opt dir pc distSign branchPoint ineq
+      (pc, seeds)
+
+  let solveBranchSeq seed opt dir pc branchSeq =
+    List.fold (fun (accPc, accSeeds) branch ->
+      let accPc, newSeeds = solveBranchCond seed opt dir accPc branch
+      accPc, newSeeds @ accSeeds
+    ) (pc, []) branchSeq.Branches
+
+  let rec solveBranchTree seed opt dir pc branchTree =
     match branchTree with
-    | Nil ->
-      List.map (fun s -> (s, Inequality)) (encodeCondition seed opt dir pc)
-    | Step ((LinIneq ineq, targPt), distSign, childTree) ->
-      if opt.Verbosity >= 4 then
-        log "Solving @ 0x%x(#%d)" targPt.Addr targPt.Idx
-        log "Linear inequality : %s" (LinearInequality.toString ineq)
-      let condP, condN = extractCond seed opt dir ineq targPt
-      let pc, flipCond = updateConditions pc distSign condP condN
-      if opt.Verbosity >= 4 then
-        log "PC updated to %A while stepping" pc
-        log "Will generate seed with cond %A" flipCond
-      let seeds = encodeCondition seed opt dir flipCond
-      let results = List.map (fun s -> (s, Inequality)) seeds
-      let childResults = solveBranches seed opt dir pc childTree
-      results @ childResults
-    | Step ((LinEq linEq, targPt), _, childTree) ->
-      let seeds = solveEquation seed opt dir [] (targPt, linEq)
-      let results = List.map (fun s -> (s, Equation)) seeds
-      let childResults = solveBranches seed opt dir pc childTree
-      results @ childResults
-    | Step ((Mono mono, targPt), _, childTree) ->
-      let seeds = solveMonotonic seed opt [] (targPt, mono)
-      let results = List.map (fun s -> (s, Monoton)) seeds
-      let childResults = solveBranches seed opt dir pc childTree
-      results @ childResults
-    | Fork ((LinIneq ineq, targPt), pairs) ->
-      if opt.Verbosity >= 4 then
-        log "Solving @ 0x%x(#%d)" targPt.Addr targPt.Idx
-        log "Linear inequality : %s" (LinearInequality.toString ineq)
-      let condP, condN = extractCond seed opt dir ineq targPt
-      List.fold (fun accRes (distSign, childTree) ->
-        let pc, _ = updateConditions pc distSign condP condN
-        if opt.Verbosity >= 4 then
-          log "PC updated to %A while forking" pc
-        solveBranches seed opt dir pc childTree @ accRes
-      ) [] pairs
-    | Fork ((LinEq linEq, targPt), pairs) ->
-      let seeds = solveEquation seed opt dir [] (targPt, linEq)
-      let results = List.map (fun s -> (s, Equation)) seeds
-      let childTrees = List.map snd pairs
-      let childResults = List.collect (solveBranches seed opt dir pc) childTrees
-      results @ childResults
-    | Fork ((Mono mono, targPt), pairs) ->
-      let seeds = solveMonotonic seed opt [] (targPt, mono)
-      let results = List.map (fun s -> (s, Monoton)) seeds
-      let childTrees = List.map snd pairs
-      let childResults = List.collect (solveBranches seed opt dir pc) childTrees
-      results @ childResults
-    | Diverge pairs ->
-      List.fold (fun accSeeds (_, brTree) ->
-        solveBranches seed opt dir pc brTree @ accSeeds
-      ) [] pairs
+    | Straight branchSeq ->
+      let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
+      let terminalSeeds = encodeCondition seed opt dir pc
+      newSeeds @ terminalSeeds
+    | ForkedTree (branchSeq, (LinIneq ineq, branchPt), childs) ->
+      let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
+      let condP, condN = extractCond seed opt dir ineq branchPt
+      let childSeeds =
+        List.map (fun (distSign, childTree) ->
+          let pc, _ = updateConditions pc distSign condP condN
+          solveBranchTree seed opt dir pc childTree
+        ) childs
+      List.concat (newSeeds :: childSeeds)
+    | ForkedTree (branchSeq, _, childs) ->
+      let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
+      let childSeeds = List.map (snd >> solveBranchTree seed opt dir pc) childs
+      List.concat (newSeeds :: childSeeds)
+    | DivergeTree (branchSeq, subTrees) ->
+      let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
+      let subTreeSeeds = List.map (solveBranchTree seed opt dir pc) subTrees
+      List.concat (newSeeds :: subTreeSeeds)
 
   let solve seed opt byteDir branchTree =
-    let branchTree = BranchTree.selectBranches opt branchTree
     let initPC = Constraint.top
-    solveBranches seed opt byteDir initPC branchTree
+    solveBranchTree seed opt byteDir initPC branchTree

@@ -16,12 +16,13 @@ int main(int argc, char ** argv){
 
   if (argc < 2)
     return -1;
+
   fd = open(argv[1], O_RDWR);
 
   read(fd, &c, sizeof(c));
   if (0x41 < c && c < 0x65) {
     printf("Found new block 1!\n");
-    if (c == 0x51) {
+    if (c == 0x53) {
       printf("Found new block 2!\n");
     }
   }

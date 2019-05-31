@@ -9,9 +9,6 @@ type Signal =
   | SIGSEGV = 11
   | SIGALRM = 14
 
-
-
-[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
 module Signal =
   let isCrash signal =
     match signal with

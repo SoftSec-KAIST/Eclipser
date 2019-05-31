@@ -100,11 +100,6 @@ module RandFuzzQueue =
     let prevSize = queue.LastMinimizedCount
     curSize > int (float prevSize * SeedCullingThreshold)
 
-  (* For debugging. We can remove this later *)
-  let printRedundantSeed seed =
-    let seedStr = Seed.toString seed
-    log "[*] (Redundant seed) : %s" seedStr
-
   let rec findRedundantsGreedyAux queue seedEntries accRedundantSeeds =
     if List.isEmpty seedEntries then accRedundantSeeds
     else
@@ -119,7 +114,6 @@ module RandFuzzQueue =
       (* If the node set entry is empty, it means that seed is redundant *)
       let redundantEntries, seedEntries =
         List.partition (fun (i, s, ns) -> Set.isEmpty ns) seedEntries
-      List.iter (fun (i, s, ns) -> printRedundantSeed s) redundantEntries
       let redundantSeeds = List.map (fun (i, s, _) -> (i, s)) redundantEntries
       let accRedundantSeeds = redundantSeeds @ accRedundantSeeds
       findRedundantsGreedyAux queue seedEntries accRedundantSeeds
@@ -134,12 +128,10 @@ module RandFuzzQueue =
 
   let minimize queue opt =
     let favoredQueue = queue.FavoredQueue
-    log "# of seeds before minimization : %d" favoredQueue.Count
     let seeds = favoredQueue.Elems.[0 .. favoredQueue.Count - 1]
                 |> Array.mapi (fun i seed -> (i, seed))
                 |> List.ofArray
     let seedsToRemove = findRedundantsGreedy seeds favoredQueue opt
-    log "Total %d redundant seeds found" seedsToRemove.Length
     // Note that we should remove larger index first
     let newFavoredQueue = List.sortByDescending fst seedsToRemove
                           |> List.fold DurableQueue.remove favoredQueue

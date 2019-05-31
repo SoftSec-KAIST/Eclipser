@@ -156,8 +156,7 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
     if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
       break;
 
-    if (t.pc < mmap_next_start)
-        tb_find_slow(env, t.pc, t.cs_base, t.flags);
+    tb_find_slow(env, t.pc, t.cs_base, t.flags);
 
   }
 

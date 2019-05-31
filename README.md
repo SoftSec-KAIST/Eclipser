@@ -77,7 +77,7 @@ $ dotnet build/Eclipser.dll fuzz \
 
 By providing `--src file` option to Eclipser, you can fuzz a file input of a
 target program. You can specify the command line argument of target program with
-`--initarg` option, and specify the input file name with `--fixfilepath` option.
+`--initarg` option, and specify the input file name with `-f` option.
 
 For example, consider a target program that takes in input file via "--input"
 option. Using the following command, you can fuzz the file input of this program
@@ -87,7 +87,7 @@ file input.
 ```
 $ dotnet build/Eclipser.dll fuzz \
     -p example.bin -v 1 -t 10 -o outdir \
-    --src file --initarg "--input foo" --fixfilepath foo --maxfilelen 8
+    --src file --initarg "--input foo" -f foo --maxfilelen 8
 ```
 
 You may also want to provide initial seed inputs for the fuzzing. You can use

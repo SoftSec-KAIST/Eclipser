@@ -6,26 +6,26 @@ open Config
 
 type FuzzerCLI =
   | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
-  | [<AltCommandLine("-v")>] Verbose of int
-  | [<AltCommandLine("-t")>] Timelimit of sec: int
-  | [<AltCommandLine("-o")>] OutputDir of path: string
+  | [<AltCommandLine("-v")>] [<Unique>] Verbose of int
+  | [<AltCommandLine("-t")>] [<Mandatory>] [<Unique>] Timelimit of sec: int
+  | [<AltCommandLine("-o")>] [<Mandatory>] [<Unique>] OutputDir of path: string
   | [<Mandatory>] [<Unique>] Src of string
   // Options related to seed initialization
-  | [<AltCommandLine("-i")>] InitSeedsDir of path: string
-  | MaxArgLen of int list
-  | MaxFileLen of int
-  | MaxStdInLen of int
-  | InitArg of string
-  | FixFilepath of string
+  | [<AltCommandLine("-i")>] [<Unique>] InitSeedsDir of path: string
+  | [<Unique>] MaxArgLen of int list
+  | [<Unique>] MaxFileLen of int
+  | [<Unique>] MaxStdInLen of int
+  | [<Unique>] InitArg of string
+  | [<AltCommandLine("-f")>] [<AltCommandLine("--fixfilepath")>] [<Unique>] Filepath of string
   // Options related to execution of program
-  | ExecTimeout of millisec:uint64
-  | UsePty
-  | Architecture of string
+  | [<Unique>] ExecTimeout of millisec:uint64
+  | [<Unique>] UsePty
+  | [<Unique>] Architecture of string
   // Options related to fuzzing process
-  | NSolve of int
-  | NSpawn of int
-  | GreyConcolicOnly
-  | RandFuzzOnly
+  | [<Unique>] NSolve of int
+  | [<Unique>] NSpawn of int
+  | [<Unique>] GreyConcolicOnly
+  | [<Unique>] RandFuzzOnly
 with
   interface IArgParserTemplate with
     member s.Usage =
@@ -44,7 +44,7 @@ with
       | MaxFileLen _ -> "Maximum len of file input (default:[8])"
       | MaxStdInLen _ -> "Maximum len of file input (default:[8])"
       | InitArg _ -> "Initial command-line argument of program under test."
-      | FixFilepath _ -> "Fix the path of file input"
+      | Filepath _ -> "File input's (fixed) path"
       // Options related to execution of program
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default:500)"
       | UsePty _ -> "Use pseudo tty for standard input"
@@ -61,7 +61,7 @@ with
 type FuzzOption = {
   Verbosity         : int
   OutDir            : string
-  Timelimit         : float
+  Timelimit         : int
   FuzzMode          : FuzzMode
   // Options related to program execution
   TargetProg        : string
@@ -74,7 +74,7 @@ type FuzzOption = {
   MaxFileLen        : int
   MaxStdInLen       : int
   InitArg           : string
-  FixFilepath       : string
+  Filepath          : string
   // Options related to test case generation
   NSolve            : int
   NSpawn            : int
@@ -88,8 +88,8 @@ let parseFuzzOption (args: string array) =
   let r = try parser.Parse(args) with
           :? Argu.ArguParseException -> printLine (parser.PrintUsage()); exit 1
   { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 0)
-    OutDir = r.GetResult (<@ OutputDir @>, defaultValue = "")
-    Timelimit = float (r.GetResult (<@ Timelimit @>))
+    OutDir = r.GetResult (<@ OutputDir @>)
+    Timelimit = r.GetResult (<@ Timelimit @>)
     FuzzMode = FuzzMode.ofString (r.GetResult(<@ Src @>))
     // Options related to program execution
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
@@ -103,7 +103,7 @@ let parseFuzzOption (args: string array) =
     MaxFileLen = r.GetResult (<@ MaxFileLen @>, defaultValue = 8)
     MaxStdInLen = r.GetResult (<@ MaxStdInLen @>, defaultValue = 8)
     InitArg = r.GetResult (<@ InitArg @>, defaultValue = "")
-    FixFilepath = r.GetResult (<@ FixFilepath @>, defaultValue = "")
+    Filepath = r.GetResult (<@ Filepath @>, defaultValue = "")
     // Options related to test case generation
     NSolve = r.GetResult(<@ NSolve @>, defaultValue = 600)
     NSpawn = r.GetResult(<@ NSpawn @>, defaultValue = 10)
@@ -111,5 +111,11 @@ let parseFuzzOption (args: string array) =
     RandFuzzOnly = r.Contains(<@ RandFuzzOnly @>) }
 
 let validateFuzzOption opt =
-  if opt.FuzzMode = FileFuzz && opt.FixFilepath = "" then
-    printLine "Should specify the input file path in file fuzzing mode"; exit 1
+  if opt.FuzzMode = FileFuzz && opt.Filepath = "" then
+    printLine "Should specify the file input path in file fuzzing mode."
+    exit 1
+  if opt.GreyConcolicOnly && opt.RandFuzzOnly then
+    printLine "Cannot specify '--greyconcoliconly' and 'randfuzzonly' together."
+    exit 1
+  if opt.NSpawn < 3 then
+    failwith "Should provide N_spawn greater than or equal to 3"

@@ -5,11 +5,11 @@ open Config
 open Utils
 
 type ReplayerCLI =
-  | [<AltCommandLine("-p")>] [<Unique>] Program of path: string
-  | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
+  | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
+  | [<AltCommandLine("-i")>] [<Mandatory>] [<Unique>] InputDir of path: string
   // Options related to execution of program
-  | ExecTimeout of millisec: uint64
-  | UsePty
+  | [<Unique>] ExecTimeout of millisec: uint64
+  | [<Unique>] UsePty
 with
   interface IArgParserTemplate with
     member s.Usage =
@@ -46,8 +46,8 @@ let run args =
   let timeout = opt.ExecTimeout
   let usePty = opt.UsePty
   let testcaseDir = opt.TestcaseDir
-  checkFileExists program
-  Executor.initialize_exec Executor.ExecMode.Replay
+  assertFileExists program
+  Executor.initialize_exec Executor.TimeoutHandling.GDBQuit
   printLine ("Start replaying test cases in : " + testcaseDir)
   for file in System.IO.Directory.EnumerateFiles(testcaseDir) do
     let tc = System.IO.File.ReadAllText file |> TestCase.fromJSON
@@ -58,5 +58,5 @@ let run args =
     let stdinLen = stdin.Length
     let files = Executor.setupFiles program tc true
     Executor.exec(argc, args, stdinLen, stdin, timeout, usePty) |> ignore
-    Executor.clearFiles files
+    removeFiles files
   printLine "Replay finished"

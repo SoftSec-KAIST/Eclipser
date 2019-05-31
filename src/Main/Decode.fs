@@ -8,8 +8,8 @@ open BytesUtils
 type Parser = ArgumentParser
 
 type DecoderCLI =
-  | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
-  | [<AltCommandLine("-o")>] [<Unique>] OutputDir of path: string
+  | [<AltCommandLine("-i")>] [<Mandatory>] [<Unique>] InputDir of path: string
+  | [<AltCommandLine("-o")>] [<Mandatory>] [<Unique>] OutputDir of path: string
 with
   interface IArgParserTemplate with
     member s.Usage =
@@ -36,6 +36,7 @@ let run args =
   let decodeOpt = parseDecodeOption args
   let testcaseDir = decodeOpt.TestcaseDir
   let outDir = decodeOpt.OutputDir
+  createDirectoryIfNotExists outDir
   printLine ("Decoding test cases in : " + testcaseDir)
   let decodedArgDir = outDir + "/decoded_args"
   let decodedStdinDir = outDir + "/decoded_stdins"

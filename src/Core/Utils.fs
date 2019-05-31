@@ -2,6 +2,7 @@
 module Eclipser.Utils
 
 open System
+open System.Collections.Immutable
 
 // Give a less confusing name to identity function, 'id'.
 let identity = id
@@ -69,17 +70,20 @@ let getUnsignedMax = function
   | i -> (1I <<< (i * 8)) - 1I
 
 // Auxiliary function for randSubset().
-let private randomSubsetAux accumSet i =
+let private randomSubsetAux (accumSet : ImmutableHashSet<int>) i =
   let t = random.Next(i + 1) // 't' will be in the range 0 ~ i.
-  if Set.contains t accumSet
-  then Set.add i accumSet
-  else Set.add t accumSet
+  if accumSet.Contains(t)
+  then accumSet.Add(i)
+  else accumSet.Add(t)
 
 /// Choose random k integers from { 0 .. (n - 1) }, with Floyd's algorithm.
 let randomSubset n k =
+  let empty: ImmutableHashSet<int> = ImmutableHashSet.Create()
   if n >= k then
-    List.fold randomSubsetAux Set.empty (List.ofSeq { (n - k) .. (n - 1) })
-  else Set.ofSeq { 0 .. (n - 1) }
+    List.fold randomSubsetAux empty (List.ofSeq { (n - k) .. (n - 1) })
+  else
+    let seqList = List.ofSeq { 0 .. (n - 1) }
+    List.fold (fun (acc: ImmutableHashSet<int>) i -> acc.Add(i)) empty seqList
 
 /// Choose random N elements from a given list.
 let randomSelect elemList n =
@@ -96,25 +100,24 @@ let sampleInt min max (n : int) =
     List.init n (fun i -> min + delta * (bigint i))
 
 /// Check if a file exists in the given path, and exit if not.
-let checkFileExists file =
+let assertFileExists file =
   if not (System.IO.File.Exists(file)) then
     printfn "Target file ('%s') does not exist" file
     exit 1
 
-/// Check if a directory exists in the given path, and exit if not.
-let checkDirectoryExists dir =
-  if not (System.IO.Directory.Exists(dir)) then
-    printfn "Target directory ('%s') does not exist" dir
-    exit 1
+/// Remove a file, without throwing exception.
+let removeFile file =
+  try System.IO.File.Delete(file) with _ -> ()
 
-/// Create a directory with given prefix of directory name. Directory name is
-/// suffixed with "-0", "-1", "-2" and so on, and the smallest available number
-/// is chosen.
-let createDirWithPrefix prefix =
-  let mutable count = 0
-  let mutable dirName = sprintf "%s-%d" prefix count
-  while System.IO.Directory.Exists dirName do
-    count <- count + 1
-    dirName <- sprintf "%s-%d" prefix count
-  ignore (System.IO.Directory.CreateDirectory dirName)
-  dirName
+/// Remove a list of files, without throwing exception.
+let removeFiles files =
+  List.iter removeFile files
+
+/// Remove a directory, without throwing exception.
+let removeDir dir =
+  try System.IO.Directory.Delete(dir, recursive = true) with _ -> ()
+
+/// Create a directory if not exists.
+let createDirectoryIfNotExists dir =
+  if not (System.IO.Directory.Exists dir) then
+    ignore (System.IO.Directory.CreateDirectory dir)

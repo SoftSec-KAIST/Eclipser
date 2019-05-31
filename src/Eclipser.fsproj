@@ -18,7 +18,6 @@
     <Compile Include="Fuzz/Options.fs" />
     <Compile Include="Executor/Signal.fs" />
     <Compile Include="Executor/Syscall.fs" />
-    <Compile Include="Main/System.fs" />
     <Compile Include="Fuzz/GreyConcolic/BranchInfo.fs" />
     <Compile Include="Executor/Executor.fs" />
     <Compile Include="Fuzz/Manager.fs" />
@@ -28,8 +27,8 @@
     <Compile Include="Fuzz/GreyConcolic/LinearInequality.fs" />
     <Compile Include="Fuzz/GreyConcolic/Monotonicity.fs" />
     <Compile Include="Fuzz/GreyConcolic/BranchTree.fs" />
-    <Compile Include="Fuzz/GreyConcolic/Condition.fs" />
-    <Compile Include="Fuzz/GreyConcolic/BranchCondition.fs" />
+    <Compile Include="Fuzz/GreyConcolic/PathConstraint.fs" />
+    <Compile Include="Fuzz/GreyConcolic/Solve.fs" />
     <Compile Include="Fuzz/GreyConcolic/GreyConcolic.fs" />
     <Compile Include="Fuzz/SeedQueue.fs" />
     <Compile Include="Fuzz/RandomFuzz.fs" />

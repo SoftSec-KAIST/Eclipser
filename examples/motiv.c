@@ -16,11 +16,22 @@ int main(int argc, char** argv)
 {
   char buf[9];
   int fd;
+  size_t n;
 
   fd = open("input", O_RDONLY);
-  read(fd, buf, sizeof(buf) - 1);
+
+  if (fd < 0) {
+    return -1;
+  }
+
+  n = read(fd, buf, sizeof(buf) - 1);
+  if (n != sizeof(buf) - 1) {
+    return 1;
+  }
   buf[8] = 0;
+
   vulnfunc(*((int32_t*) &buf[0]), &buf[4]);
+
   return 0;
 }
 
