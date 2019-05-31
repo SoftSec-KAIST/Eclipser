@@ -190,3 +190,16 @@ have a branch that supports ARM architecture, but do not plan to open source it.
 In default, Eclipser assumes that the target program is an x64 binary. If you
 want to fuzz an x86 binary, you should provide `--architecture x86` option to
 Eclipser.
+
+# Citation
+
+Please consider citing our paper (ICSE 2019):
+```bibtex
+@INPROCEEDINGS{choi:icse:2019,                                                  
+  author = {Jaeseung Choi and Joonun Jang and Choongwoo Han and Sang Kil Cha},
+  title = {Grey-box Concolic Testing on Binary Code},
+  booktitle = icse,
+  pages = {736--747},
+  year = 2019
+}
+```
