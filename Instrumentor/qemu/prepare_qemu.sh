@@ -16,37 +16,6 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 
-build_qemu () {
-    if [ $2 = "x86" ]; then
-        CPU_TARGET="i386"
-    elif [ $2 = "x64" ]; then
-        CPU_TARGET="x86_64"
-    else
-        echo "Invalid CPU architecture provided"
-        exit 0
-    fi
-
-    echo "[*] Configuring QEMU for $CPU_TARGET..."
-
-    cd qemu-2.3.0-$1-$2 || exit 1
-
-    CFLAGS="-O3" ./configure --disable-system --enable-linux-user \
-      --python=python2 --enable-guest-base --disable-gtk --disable-sdl --disable-vnc \
-      --target-list="${CPU_TARGET}-linux-user" || exit 1
-
-    echo "[+] Configuration complete."
-
-    echo "[*] Attempting to build QEMU (fingers crossed!)..."
-
-    make || exit 1
-
-    echo "[+] Build process successful!"
-
-    echo "[*] Copying binary..."
-    cp -f "${CPU_TARGET}-linux-user/qemu-${CPU_TARGET}" "../qemu-trace" || exit 1
-    cd ..
-}
-
 QEMU_URL="https://download.qemu.org/qemu-2.3.0.tar.bz2"
 QEMU_SHA384="7a0f0c900f7e2048463cc32ff3e904965ab466c8428847400a0f2dcfe458108a68012c4fddb2a7e7c822b4fd1a49639b"
 
@@ -228,39 +197,3 @@ cp -r "qemu-2.3.0-feedback" "qemu-2.3.0-feedback-x86"
 mv "qemu-2.3.0-feedback" "qemu-2.3.0-feedback-x64"
 cp -r "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x86"
 mv "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x64"
-
-### Build QEMU tracers
-
-build_qemu pathcov x86
-mv "./qemu-trace" "../../build/qemu-trace-pathcov-x86" || exit 1
-echo "[+] Successfully created 'qemu-trace-pathcov-x86'."
-
-build_qemu pathcov x64
-mv "./qemu-trace" "../../build/qemu-trace-pathcov-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-pathcov-x64'."
-
-build_qemu syscall x86
-mv "./qemu-trace" "../../build/qemu-trace-syscall-x86" || exit 1
-echo "[+] Successfully created 'qemu-trace-syscall-x86'."
-
-build_qemu syscall x64
-mv "./qemu-trace" "../../build/qemu-trace-syscall-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-syscall-x64'."
-
-build_qemu feedback x86
-mv "./qemu-trace" "../../build/qemu-trace-feedback-x86" || exit 1
-echo "[+] Successfully created 'qemu-trace-feedback-x86'."
-
-build_qemu feedback x64
-mv "./qemu-trace" "../../build/qemu-trace-feedback-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-feedback-x64'."
-
-build_qemu bbcount x86
-mv "./qemu-trace" "../../build/qemu-trace-bbcount-x86" || exit 1
-echo "[+] Successfully created 'qemu-trace-bbcount-x86'."
-
-build_qemu bbcount x64
-mv "./qemu-trace" "../../build/qemu-trace-bbcount-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-bbcount-x64'."
-
-exit 0
