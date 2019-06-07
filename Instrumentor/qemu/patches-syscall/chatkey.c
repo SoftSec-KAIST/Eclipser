@@ -15,7 +15,6 @@ typedef uint64_t abi_ulong;
 #define TARGET_NR_dup           32
 #define TARGET_NR_dup2          33
 #define TARGET_NR_dup3          292
-#define TARGET_NR_bind          49
 #define TARGET_NR_exit_group    231
 #else
 typedef int32_t abi_long;
@@ -27,7 +26,6 @@ typedef uint32_t abi_ulong;
 #define TARGET_NR_dup           41
 #define TARGET_NR_dup2          63
 #define TARGET_NR_dup3          330
-#define TARGET_NR_bind          0xdeadbeef
 #define TARGET_NR_exit_group    252
 #endif
 

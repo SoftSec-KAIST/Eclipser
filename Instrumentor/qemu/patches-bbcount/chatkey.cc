@@ -18,7 +18,7 @@ typedef uint64_t abi_ulong;
 #define TARGET_NR_open          2
 #define TARGET_NR_openat        257
 #define TARGET_NR_mmap          9
-#define TARGET_NR_mmap2         0xdeadbeaf // do not exist
+#define TARGET_NR_mmap2         0xdead // do not exist
 
 #else
 
