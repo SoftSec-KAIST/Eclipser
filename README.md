@@ -198,7 +198,7 @@ Please consider citing our paper (ICSE 2019):
 @INPROCEEDINGS{choi:icse:2019,                                                  
   author = {Jaeseung Choi and Joonun Jang and Choongwoo Han and Sang Kil Cha},
   title = {Grey-box Concolic Testing on Binary Code},
-  booktitle = icse,
+  booktitle = {Proceedings of the International Conference on Software Engineering},
   pages = {736--747},
   year = 2019
 }
