@@ -59,6 +59,24 @@ let moveCursors opt isFromConcolic seeds =
   let concItems, randItems = moveCursorsAux opt isFromConcolic [] [] seeds
   (List.rev concItems, List.rev randItems)
 
+let preprocessAux opt seed =
+  let newNodeN, pathHash, nodeHash, exitSig = Executor.getCoverage opt seed
+  let isNewPath = Manager.storeSeed opt seed newNodeN pathHash nodeHash exitSig
+  let inputSrcs = findInputSrc opt seed
+  let newSeeds = seed :: Seed.moveSourceCursor seed inputSrcs
+  if newNodeN > 0 then List.map (fun s -> (Favored, s)) newSeeds
+  elif isNewPath then List.map (fun s -> (Normal, s)) newSeeds
+  else []
+
+let preprocess opt seeds =
+  log "[*] Total %d initial seeds" (List.length seeds)
+  let items = List.collect (preprocessAux opt) seeds
+  let favoredCount = List.filter (fst >> (=) Favored) items |> List.length
+  let normalCount = List.filter (fst >> (=) Normal) items |> List.length
+  log "[*] %d initial items with high priority" favoredCount
+  log "[*] %d initial items with low priority" normalCount
+  items
+
 /// Allocate testing resource for each strategy (grey-box concolic testing and
 /// random fuzz testing). Resource is managed through 'the number of allowed
 /// program execution'. If the number of instrumented program execution exceeds
@@ -167,8 +185,8 @@ let run args =
   let opt = parseFuzzOption args
   validateFuzzOption opt
   assertFileExists opt.TargetProg
-  printfn "Fuzz target : %s" opt.TargetProg
-  printfn "Time limit : %d sec" opt.Timelimit
+  log "[*] Fuzz target : %s" opt.TargetProg
+  log "[*] Time limit : %d sec" opt.Timelimit
   createDirectoryIfNotExists opt.OutDir
   Manager.initialize opt.OutDir
   Executor.initialize opt.OutDir opt.Verbosity
@@ -177,12 +195,12 @@ let run args =
   if opt.FuzzMode = StdinFuzz || opt.FuzzMode = FileFuzz then
     Executor.initForkServer opt
   let initialSeeds = initializeSeeds opt
-  let initItems = List.map (fun s -> (Favored, s)) initialSeeds
+  let initItems = preprocess opt initialSeeds
   let queueDir = sprintf "%s/.internal" opt.OutDir
   let greyConcQueue = ConcolicQueue.initialize queueDir
   let greyConcQueue = List.fold ConcolicQueue.enqueue greyConcQueue initItems
   let randFuzzQueue = RandFuzzQueue.initialize queueDir
   let randFuzzQueue = List.fold RandFuzzQueue.enqueue randFuzzQueue initItems
-  log "Fuzzing starts"
+  log "[*] Fuzzing starts"
   Async.Start (fuzzingTimer opt.Timelimit queueDir)
   fuzzLoop opt greyConcQueue randFuzzQueue
