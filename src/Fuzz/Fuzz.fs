@@ -60,11 +60,11 @@ let moveCursors opt isFromConcolic seeds =
   (List.rev concItems, List.rev randItems)
 
 let preprocessAux opt seed =
-  let newNodeN, pathHash, nodeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.storeSeed opt seed newNodeN pathHash nodeHash exitSig
+  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
+  let isNewPath = Manager.storeSeed opt seed newEdgeN pathHash edgeHash exitSig
   let inputSrcs = findInputSrc opt seed
   let newSeeds = seed :: Seed.moveSourceCursor seed inputSrcs
-  if newNodeN > 0 then List.map (fun s -> (Favored, s)) newSeeds
+  if newEdgeN > 0 then List.map (fun s -> (Favored, s)) newSeeds
   elif isNewPath then List.map (fun s -> (Normal, s)) newSeeds
   else []
 

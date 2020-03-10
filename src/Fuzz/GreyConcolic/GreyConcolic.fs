@@ -23,17 +23,17 @@ let evaluateEfficiency () =
   let newPathNum = List.sum (Queue.elements recentNewPathNums)
   if execNum = 0 then 1.0 else float newPathNum / float execNum
 
-let printFoundSeed seed newNodeN =
+let printFoundSeed seed newEdgeN =
   let seedStr = Seed.toString seed
-  let nodeStr = if newNodeN > 0 then sprintf "(%d new nodes) " newNodeN else ""
-  log "[*] Found by grey-box concolic %s: %s" nodeStr seedStr
+  let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""
+  log "[*] Found by grey-box concolic %s: %s" edgeStr seedStr
 
 let evalSeedsAux opt accSeeds seed =
-  let newNodeN, pathHash, nodeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.storeSeed opt seed newNodeN pathHash nodeHash exitSig
-  if newNodeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newNodeN
+  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
+  let isNewPath = Manager.storeSeed opt seed newEdgeN pathHash edgeHash exitSig
+  if newEdgeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newEdgeN
   if isNewPath && not (Signal.isTimeout exitSig) && not (Signal.isCrash exitSig)
-  then let priority = if newNodeN > 0 then Favored else Normal
+  then let priority = if newEdgeN > 0 then Favored else Normal
        (priority, seed) :: accSeeds
   else accSeeds
 
