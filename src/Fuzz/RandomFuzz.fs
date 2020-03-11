@@ -82,15 +82,17 @@ let trim opt edgeHash seed =
   // Should adjust byte cursor again within a valid range.
   Seed.shuffleByteCursor trimmedSeed
 
-let printFoundSeed seed newEdgeN =
-  let seedStr = Seed.toString seed
+let printFoundSeed verbosity seed newEdgeN =
   let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""
-  log "[*] Found by random fuzzing %s: %s" edgeStr seedStr
+  if verbosity >= 1 then
+    log "[*] Found by random fuzzing %s: %s" edgeStr (Seed.toString seed)
+  elif verbosity >= 0 then
+    log "[*] Found by random fuzzing %s" edgeStr
 
 let evalSeedsAux opt accItems seed =
   let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
   let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig false
-  if newEdgeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newEdgeN
+  if newEdgeN > 0 then printFoundSeed opt.Verbosity seed newEdgeN
   if isNewPath && not (Signal.isTimeout exitSig) && not (Signal.isCrash exitSig)
   then
     let priority = if newEdgeN > 0 then Favored else Normal
