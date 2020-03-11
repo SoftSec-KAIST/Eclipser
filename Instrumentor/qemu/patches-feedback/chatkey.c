@@ -18,7 +18,7 @@ extern unsigned int afl_forksrv_pid;
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
-#define MAX_TRACE_LEN (100000)
+#define MAX_TRACE_LEN (1000000)
 
 static abi_ulong hash = 5381; // djb2 hash
 
