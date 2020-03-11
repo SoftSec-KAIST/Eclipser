@@ -89,7 +89,7 @@ let printFoundSeed seed newEdgeN =
 
 let evalSeedsAux opt accItems seed =
   let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.storeSeed opt seed newEdgeN pathHash edgeHash exitSig
+  let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig false
   if newEdgeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newEdgeN
   if isNewPath && not (Signal.isTimeout exitSig) && not (Signal.isCrash exitSig)
   then

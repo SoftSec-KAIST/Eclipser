@@ -111,10 +111,10 @@ let private checkCrash opt exitSig tc edgeHash =
     else (false, exitSig')
   else (false, exitSig)
 
-let storeSeed opt seed newN pathHash edgeHash exitSig =
+let save opt seed newN pathHash edgeHash exitSig isInitSeed =
   let tc = TestCase.fromSeed seed
   let isNewPath = addPathHash pathHash
   let isNewCrash, exitSig' = checkCrash opt exitSig tc edgeHash
-  if newN > 0 then dumpTestCase seed
+  if newN > 0 || isInitSeed then dumpTestCase seed
   if isNewCrash then dumpCrash opt seed exitSig'
   isNewPath
