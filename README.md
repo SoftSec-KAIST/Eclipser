@@ -16,6 +16,14 @@ performs program instrumentation based on QEMU code.
 
 ```
 $ (First, you should add deb-src entries to /etc/apt/sources.list)
+$ sudo vim /etc/apt/sources.list
+add the following lines to the sources.list :
+deb-src http://archive.ubuntu.com/ubuntu trusty main restricted #Added by software-properties
+deb-src http://gb.archive.ubuntu.com/ubuntu/ trusty restricted main universe multiverse #Added by software-properties
+deb-src http://gb.archive.ubuntu.com/ubuntu/ trusty-updates restricted main universe multiverse #Added by software-properties
+deb-src http://gb.archive.ubuntu.com/ubuntu/ trusty-backports main restricted universe multiverse #Added by software-properties
+deb-src http://security.ubuntu.com/ubuntu trusty-security restricted main universe multiverse #Added by software-properties
+deb-src http://gb.archive.ubuntu.com/ubuntu/ trusty-proposed restricted main universe multiverse #Added by software-properties
 $ sudo apt-get update
 $ sudo apt-get build-dep qemu
 $ sudo apt-get install libtool libtool-bin wget automake autoconf bison gdb
