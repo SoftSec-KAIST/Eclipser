@@ -15,7 +15,7 @@ performs program instrumentation based on QEMU code.
 1. Install dependencies
 
 ```
-$ (First, you should add deb-src entries to /etc/apt/sources.list)
+$ sudo vim /etc/apt/sources.list # Uncomment the lines starting with 'deb-src'.
 $ sudo apt-get update
 $ sudo apt-get build-dep qemu
 $ sudo apt-get install libtool libtool-bin wget automake autoconf bison gdb
@@ -195,7 +195,7 @@ Eclipser.
 
 Please consider citing our paper (ICSE 2019):
 ```bibtex
-@INPROCEEDINGS{choi:icse:2019,                                                  
+@INPROCEEDINGS{choi:icse:2019,
   author = {Jaeseung Choi and Joonun Jang and Choongwoo Han and Sang Kil Cha},
   title = {Grey-box Concolic Testing on Binary Code},
   booktitle = {Proceedings of the International Conference on Software Engineering},
