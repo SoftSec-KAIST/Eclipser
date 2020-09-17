@@ -58,44 +58,46 @@ let rec roundUpExpAux accVal input =
 let roundUpExp input =
   roundUpExpAux 1 input
 
-let rec trimAux opt accSeed nodeHash trimMinSize trimSize pos =
+let rec trimAux opt accSeed edgeHash trimMinSize trimSize pos =
   if trimSize < trimMinSize then
     accSeed // Cannot lower trimSize anymore, time to stop
   elif pos + trimSize >= Seed.getCurInputLen accSeed then
     (* Reached end, retry with more fine granularity (reset idx to 0). *)
-    trimAux opt accSeed nodeHash trimMinSize (trimSize / 2) 0
+    trimAux opt accSeed edgeHash trimMinSize (trimSize / 2) 0
   else  let trySeed = Seed.removeBytesFrom accSeed pos trimSize
-        let tryNodeHash = Executor.getNodeHash opt trySeed
-        if tryNodeHash = nodeHash then // Trimming succeeded.
+        let tryEdgeHash = Executor.getEdgeHash opt trySeed
+        if tryEdgeHash = edgeHash then // Trimming succeeded.
           (* Caution : Next trimming  position is not 'pos + trimSize' *)
-          trimAux opt trySeed nodeHash trimMinSize trimSize pos
+          trimAux opt trySeed edgeHash trimMinSize trimSize pos
         else (* Trimming failed, move on to next position *)
           let newPos = (pos + trimSize)
-          trimAux opt accSeed nodeHash trimMinSize trimSize newPos
+          trimAux opt accSeed edgeHash trimMinSize trimSize newPos
 
-let trim opt nodeHash seed =
+let trim opt edgeHash seed =
   let inputLen = Seed.getCurInputLen seed
   let inputLenRounded = roundUpExp inputLen
   let trimSize = max (inputLenRounded / TRIM_START_STEPS) TRIM_MIN_BYTES
   let trimMinSize = max (inputLenRounded / TRIM_END_STEPS) TRIM_MIN_BYTES
-  let trimmedSeed = trimAux opt seed nodeHash trimMinSize trimSize 0
+  let trimmedSeed = trimAux opt seed edgeHash trimMinSize trimSize 0
   // Should adjust byte cursor again within a valid range.
   Seed.shuffleByteCursor trimmedSeed
 
-let printFoundSeed seed newNodeN =
-  let seedStr = Seed.toString seed
-  let nodeStr = if newNodeN > 0 then sprintf "(%d new nodes) " newNodeN else ""
-  log "[*] Found by random fuzzing %s: %s" nodeStr seedStr
+let printFoundSeed verbosity seed newEdgeN =
+  let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""
+  if verbosity >= 1 then
+    log "[*] Found by random fuzzing %s: %s" edgeStr (Seed.toString seed)
+  elif verbosity >= 0 then
+    log "[*] Found by random fuzzing %s" edgeStr
 
 let evalSeedsAux opt accItems seed =
-  let newNodeN, pathHash, nodeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.storeSeed opt seed newNodeN pathHash nodeHash exitSig
-  if newNodeN > 0 && opt.Verbosity >= 0 then printFoundSeed seed newNodeN
+  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
+  let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig false
+  if newEdgeN > 0 then printFoundSeed opt.Verbosity seed newEdgeN
   if isNewPath && not (Signal.isTimeout exitSig) && not (Signal.isCrash exitSig)
   then
-    let priority = if newNodeN > 0 then Favored else Normal
-    // Trimming is only for seeds that found new nodes
-    let seed' = if newNodeN > 0 then trim opt nodeHash seed else seed
+    let priority = if newEdgeN > 0 then Favored else Normal
+    // Trimming is only for seeds that found new edges
+    let seed' = if newEdgeN > 0 then trim opt edgeHash seed else seed
     (priority, seed') :: accItems
   else accItems
 

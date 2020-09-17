@@ -40,9 +40,9 @@ with
                  "standard input and file inputs."
       // Options related to seed initialization
       | InitSeedsDir _ -> "Directory containing initial seeds."
-      | MaxArgLen _ -> "Maximum len of cmdline argument (default:[8])"
-      | MaxFileLen _ -> "Maximum len of file input (default:[8])"
-      | MaxStdInLen _ -> "Maximum len of file input (default:[8])"
+      | MaxArgLen _ -> "Maximum len of cmdline argument (default: [8byte])"
+      | MaxFileLen _ -> "Maximum len of file input (default: 1MB)"
+      | MaxStdInLen _ -> "Maximum len of standard input (default: 1MB)"
       | InitArg _ -> "Initial command-line argument of program under test."
       | Filepath _ -> "File input's (fixed) path"
       // Options related to execution of program
@@ -100,8 +100,8 @@ let parseFuzzOption (args: string array) =
     // Options related to seed
     InitSeedsDir = r.GetResult(<@ InitSeedsDir @>, defaultValue = "")
     MaxArgLen = r.GetResult (<@ MaxArgLen @>, defaultValue = [8])
-    MaxFileLen = r.GetResult (<@ MaxFileLen @>, defaultValue = 8)
-    MaxStdInLen = r.GetResult (<@ MaxStdInLen @>, defaultValue = 8)
+    MaxFileLen = r.GetResult (<@ MaxFileLen @>, defaultValue = 1048576)
+    MaxStdInLen = r.GetResult (<@ MaxStdInLen @>, defaultValue = 1048576)
     InitArg = r.GetResult (<@ InitArg @>, defaultValue = "")
     Filepath = r.GetResult (<@ Filepath @>, defaultValue = "")
     // Options related to test case generation

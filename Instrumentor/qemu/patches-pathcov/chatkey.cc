@@ -21,24 +21,25 @@ extern unsigned int afl_forksrv_pid;
 
 abi_ulong chatkey_entry_point; /* ELF entry point (_start) */
 
-#define MODE_COUNT_NEW  0 // Count newly covered nodes, along with path hash.
-#define MODE_HASH       1 // Calculate node set hash.
-#define MODE_SET        2 // Return the set of the visited nodes.
+#define MODE_COUNT_NEW  0 // Count newly covered edges, along with path hash.
+#define MODE_HASH       1 // Calculate edge set hash.
+#define MODE_SET        2 // Return the set of the visited edges.
 int chatkey_mode = -1;
 
-static uint32_t new_node_cnt = 0; // # of new nodes visited in this execution
-static abi_ulong node_set_hash = 5381; // djb2 hash
+static uint32_t new_edge_cnt = 0; // # of new edges visited in this execution
+static abi_ulong edge_set_hash = 5381; // djb2 hash
 static abi_ulong path_hash = 5381; // djb2 hash
+static abi_ulong prev_node = 0;
 /* Global file pointers */
 static FILE* coverage_fp;
 static FILE* dbg_fp;
 
 static int is_fp_closed = 0;
 
-static unsigned char * accum_node_bitmap;
-static unsigned char node_bitmap[0x10000];
-// Holds nodes visited in this exec (will be dumped into a file)
-static dense_hash_set<abi_ulong> node_set;
+static unsigned char * accum_edge_bitmap;
+static unsigned char edge_bitmap[0x10000];
+// Holds edges visited in this exec (will be dumped into a file)
+static dense_hash_set<abi_ulong> edge_set;
 
 static void dump_set(dense_hash_set<abi_ulong> * set, FILE* output_fp)
 {
@@ -57,10 +58,10 @@ extern "C" void chatkey_setup_before_forkserver(void) {
 
   shm_id = getenv("CK_SHM_ID");
   assert(shm_id != NULL);
-  accum_node_bitmap = (unsigned char *) shmat(atoi(shm_id), NULL, 0);
-  assert(accum_node_bitmap != (void *) -1);
+  accum_edge_bitmap = (unsigned char *) shmat(atoi(shm_id), NULL, 0);
+  assert(accum_edge_bitmap != (void *) -1);
 
-  node_set.set_empty_key(0);
+  edge_set.set_empty_key(0);
 }
 
 extern "C" void chatkey_setup_after_forkserver(void) {
@@ -121,28 +122,28 @@ extern "C" void chatkey_exit(void) {
 
   if (chatkey_mode == MODE_COUNT_NEW) {
 
-    /* Output new node # and path hash. */
-    fprintf(coverage_fp, "%d\n", new_node_cnt);
+    /* Output new edge # and path hash. */
+    fprintf(coverage_fp, "%d\n", new_edge_cnt);
 #ifdef TARGET_X86_64
     fprintf(coverage_fp, "%lu\n", path_hash);
-    fprintf(coverage_fp, "%lu\n", node_set_hash);
+    fprintf(coverage_fp, "%lu\n", edge_set_hash);
 #else
     fprintf(coverage_fp, "%u\n", path_hash);
-    fprintf(coverage_fp, "%u\n", node_set_hash);
+    fprintf(coverage_fp, "%u\n", edge_set_hash);
 #endif
 
     fclose(coverage_fp);
   } else if (chatkey_mode == MODE_HASH) {
-    /* Output path hash and node hash */
+    /* Output path hash and edge hash */
 #ifdef TARGET_X86_64
-    fprintf(coverage_fp, "%lu\n", node_set_hash);
+    fprintf(coverage_fp, "%lu\n", edge_set_hash);
 #else
-    fprintf(coverage_fp, "%u\n", node_set_hash);
+    fprintf(coverage_fp, "%u\n", edge_set_hash);
 #endif
     fclose(coverage_fp);
   } else if (chatkey_mode == MODE_SET) {
-    /* Dump visited node set */
-    dump_set(&node_set, coverage_fp);
+    /* Dump visited edge set */
+    dump_set(&edge_set, coverage_fp);
     fclose(coverage_fp);
   } else {
     assert(false);
@@ -158,35 +159,41 @@ static inline void chatkey_update_path_hash(register abi_ulong addr) {
         path_hash = ((path_hash << 5) + path_hash) + ((addr >> (i<<3)) & 0xff);
 }
 
-static inline void update_node_set_hash(register abi_ulong node_hash) {
-  node_set_hash = node_set_hash ^ node_hash;
+static inline void update_edge_set_hash(register abi_ulong edge_hash) {
+  edge_set_hash = edge_set_hash ^ edge_hash;
 }
 
 extern "C" void chatkey_log_bb(abi_ulong addr, abi_ulong callsite) {
-    abi_ulong node, hash;
+    abi_ulong edge, hash;
     unsigned int byte_idx, byte_mask;
     unsigned char old_byte, new_byte;
 
     chatkey_update_path_hash(addr);
-    node = addr;
+    edge = addr;
+#ifdef TARGET_X86_64
+    edge = (prev_node << 16) ^ addr;
+#else
+    edge = (prev_node << 8) ^ addr;
+#endif
+    prev_node = addr;
 
     if (chatkey_mode == MODE_COUNT_NEW) {
-      // Check and update both node_bitmap and accumulative bitmap
-      hash = (node >> 4) ^ (node << 8);
+      // Check and update both edge_bitmap and accumulative bitmap
+      hash = (edge >> 4) ^ (edge << 8);
       byte_idx = (hash >> 3) & 0xffff;
       byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
-      old_byte = node_bitmap[byte_idx];
+      old_byte = edge_bitmap[byte_idx];
       new_byte = old_byte | byte_mask;
       if (old_byte != new_byte) {
-        node_bitmap[byte_idx] = new_byte;
-        // If it's a new node, update node hash and also add to accumulative map
-        update_node_set_hash(hash);
-        old_byte = accum_node_bitmap[byte_idx];
+        edge_bitmap[byte_idx] = new_byte;
+        // If it's a new edge, update edge hash and also add to accumulative map
+        update_edge_set_hash(hash);
+        old_byte = accum_edge_bitmap[byte_idx];
         new_byte = old_byte | byte_mask;
         if (old_byte != new_byte) {
-          new_node_cnt++;
-          accum_node_bitmap[byte_idx] = new_byte;
-          /* Log newly found nodes if dbg_fp is not NULL */
+          new_edge_cnt++;
+          accum_edge_bitmap[byte_idx] = new_byte;
+          /* Log visited addrs if dbg_fp is not NULL */
           if (dbg_fp) {
 #ifdef TARGET_X86_64
             fprintf(dbg_fp, "(0x%lx, 0x%lx)\n", addr, callsite);
@@ -197,20 +204,20 @@ extern "C" void chatkey_log_bb(abi_ulong addr, abi_ulong callsite) {
         }
       }
     } else if (chatkey_mode == MODE_HASH) {
-      // Check and update node_bitmap only
-      hash = (node >> 4) ^ (node << 8);
+      // Check and update edge_bitmap only
+      hash = (edge >> 4) ^ (edge << 8);
       byte_idx = (hash >> 3) & 0xffff;
       byte_mask = 1 << (hash & 0x7); // Lowest 3 bits
-      old_byte = node_bitmap[byte_idx];
+      old_byte = edge_bitmap[byte_idx];
       new_byte = old_byte | byte_mask;
       if (old_byte != new_byte) {
-        node_bitmap[byte_idx] = new_byte;
-        // If it's a new node, update node hash and also add to accumulative map
-        update_node_set_hash(hash);
+        edge_bitmap[byte_idx] = new_byte;
+        // If it's a new edge, update edge hash and also add to accumulative map
+        update_edge_set_hash(hash);
       }
     } else if (chatkey_mode == MODE_SET ) {
-      // Just insert currently covered node to the node set
-      node_set.insert(node);
+      // Just insert currently covered edge to the edge set
+      edge_set.insert(edge);
     } else if (chatkey_mode != -1) {
       /* If chatkey_mode is -1, it means that chatkey_setup() is not called yet
        * This happens when QEMU is executing a dynamically linked program. Other

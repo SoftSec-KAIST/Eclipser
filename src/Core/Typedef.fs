@@ -66,7 +66,7 @@ module InputKind =
     | StdIn -> true // Currently, consider only one-time standard input.
     | File -> true // Currently, consider only one file input.
 
-/// Priority of found seed. A seed that increased node coverage is assigned
+/// Priority of found seed. A seed that increased edge coverage is assigned
 /// 'Favored' priority, while a seed that increased path coverage is assigned
 /// 'Normal' priority.
 type Priority = Favored | Normal

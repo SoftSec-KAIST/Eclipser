@@ -30,7 +30,7 @@ let mutable private stdinTestCaseCount = 0
 let mutable private fileTestCaseCount = 0
 let mutable private testCaseCount = 0
 let private pathHashes = new HashSet<Hash>()
-let private crashNodeHashes = new HashSet<Hash>()
+let private crashEdgeHashes = new HashSet<Hash>()
 
 let isNewPath pathHash =
   // The case of pathHash = 0UL means abortion due to threshold or other errors.
@@ -41,8 +41,8 @@ let private addPathHash pathHash =
   let isNewPath = pathHash <> 0UL && pathHashes.Add pathHash
   isNewPath
 
-let private addCrashHash crashNodeHash =
-  crashNodeHash <> 0UL && crashNodeHashes.Add crashNodeHash
+let private addCrashHash crashEdgeHash =
+  crashEdgeHash <> 0UL && crashEdgeHashes.Add crashEdgeHash
 
 let getPathCount () =
   pathHashes.Count
@@ -101,20 +101,20 @@ let private dumpTestCase seed =
   System.IO.File.WriteAllText(tcPath, (TestCase.toJSON tc))
   updateTestcaseCount seed
 
-let private checkCrash opt exitSig tc nodeHash =
-  if Signal.isCrash exitSig && addCrashHash nodeHash
+let private checkCrash opt exitSig tc edgeHash =
+  if Signal.isCrash exitSig && addCrashHash edgeHash
   then (true, exitSig)
   elif Signal.isTimeout exitSig then // Check again with native execution
     let exitSig' = Executor.nativeExecute opt tc
-    if Signal.isCrash exitSig' && addCrashHash nodeHash
+    if Signal.isCrash exitSig' && addCrashHash edgeHash
     then (true, exitSig')
     else (false, exitSig')
   else (false, exitSig)
 
-let storeSeed opt seed newN pathHash nodeHash exitSig =
+let save opt seed newN pathHash edgeHash exitSig isInitSeed =
   let tc = TestCase.fromSeed seed
   let isNewPath = addPathHash pathHash
-  let isNewCrash, exitSig' = checkCrash opt exitSig tc nodeHash
-  if newN > 0 then dumpTestCase seed
+  let isNewCrash, exitSig' = checkCrash opt exitSig tc edgeHash
+  if newN > 0 || isInitSeed then dumpTestCase seed
   if isNewCrash then dumpCrash opt seed exitSig'
   isNewPath

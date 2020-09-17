@@ -103,15 +103,15 @@ module RandFuzzQueue =
   let rec findRedundantsGreedyAux queue seedEntries accRedundantSeeds =
     if List.isEmpty seedEntries then accRedundantSeeds
     else
-      (* Choose an entry that has largest number of covered nodes *)
-      let getNodeCount (idx, seed, nodes) = Set.count nodes
-      let seedEntriesSorted = List.sortByDescending getNodeCount seedEntries
-      let _, _, chosenNodes = List.head seedEntriesSorted
+      (* Choose an entry that has largest number of covered edges *)
+      let getEdgeCount (idx, seed, edges) = Set.count edges
+      let seedEntriesSorted = List.sortByDescending getEdgeCount seedEntries
+      let _, _, chosenEdges = List.head seedEntriesSorted
       let seedEntries = List.tail seedEntriesSorted
-      (* Now update (i.e. subtract node set) seed entries *)
-      let subtractNodes nodes (i, s, ns) = (i, s, Set.difference ns nodes)
-      let seedEntries = List.map (subtractNodes chosenNodes) seedEntries
-      (* If the node set entry is empty, it means that seed is redundant *)
+      (* Now update (i.e. subtract edge set) seed entries *)
+      let subtractEdges edges (i, s, ns) = (i, s, Set.difference ns edges)
+      let seedEntries = List.map (subtractEdges chosenEdges) seedEntries
+      (* If the edge set entry is empty, it means that seed is redundant *)
       let redundantEntries, seedEntries =
         List.partition (fun (i, s, ns) -> Set.isEmpty ns) seedEntries
       let redundantSeeds = List.map (fun (i, s, _) -> (i, s)) redundantEntries
@@ -122,7 +122,7 @@ module RandFuzzQueue =
     let seedEntries =
       List.fold
         (fun accSets (idx, seed) ->
-          (idx, seed, Executor.getNodeSet opt seed) :: accSets
+          (idx, seed, Executor.getEdgeSet opt seed) :: accSets
         ) [] seeds
     findRedundantsGreedyAux queue seedEntries []
 
