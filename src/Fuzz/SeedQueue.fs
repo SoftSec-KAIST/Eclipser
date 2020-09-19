@@ -61,8 +61,7 @@ module RandFuzzQueue =
   let serializer = FsPickler.CreateBinarySerializer ()
 
   let initialize queueDir =
-    let dummySeed = Seed.make Args [] 0 0
-    { FavoredQueue = DurableQueue.initialize dummySeed
+    { FavoredQueue = DurableQueue.initialize Seed.dummy
       NormalQueue = FileQueue.initialize "rand-seed" queueDir
       LastMinimizedCount = 0
       RemoveCount = 0 }

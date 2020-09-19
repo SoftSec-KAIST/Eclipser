@@ -30,7 +30,9 @@ let CtxSensitivity = 0
 
 /// The length of each input during the initialization of a seed. If the user
 /// explicitly provided initial seed inputs, this parameter will not be used.
-let InitInputLen = 16
+let INIT_INPUT_LEN = 16
+
+let MAX_INPUT_LEN = 1048576
 
 let DurableQueueMaxSize = 1000
 

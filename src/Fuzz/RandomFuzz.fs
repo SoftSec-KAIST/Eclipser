@@ -61,7 +61,7 @@ let roundUpExp input =
 let rec trimAux opt accSeed edgeHash trimMinSize trimSize pos =
   if trimSize < trimMinSize then
     accSeed // Cannot lower trimSize anymore, time to stop
-  elif pos + trimSize >= Seed.getCurInputLen accSeed then
+  elif pos + trimSize >= Seed.getCurLength accSeed then
     (* Reached end, retry with more fine granularity (reset idx to 0). *)
     trimAux opt accSeed edgeHash trimMinSize (trimSize / 2) 0
   else  let trySeed = Seed.removeBytesFrom accSeed pos trimSize
@@ -74,7 +74,7 @@ let rec trimAux opt accSeed edgeHash trimMinSize trimSize pos =
           trimAux opt accSeed edgeHash trimMinSize trimSize newPos
 
 let trim opt edgeHash seed =
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   let inputLenRounded = roundUpExp inputLen
   let trimSize = max (inputLenRounded / TRIM_START_STEPS) TRIM_MIN_BYTES
   let trimMinSize = max (inputLenRounded / TRIM_END_STEPS) TRIM_MIN_BYTES
@@ -113,7 +113,7 @@ let rec getRandomPositionAux opt seed inputLen size =
   else getRandomPositionAux opt seed inputLen size
 
 let getRandomPosition opt seed size =
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   getRandomPositionAux opt seed inputLen size
 
 let flipBit opt seed =
@@ -191,7 +191,7 @@ let arithDword opt seed =
   Seed.updateBytesFrom seed pos newBytes
 
 let insertBytes seed =
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   (* '+ 1' since we want to insert at the end of input, too. *)
   let insertPosition = random.Next(inputLen + 1)
   let insertSize = chooseBlockSize HAVOC_BLOCK_MEDIUM
@@ -200,7 +200,7 @@ let insertBytes seed =
   Seed.insertBytesInto seed insertPosition insertContent
 
 let havocInsert seed =
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   (* '+ 1' since we want to insert at the end of input, too. *)
   let insertPosition = random.Next(inputLen + 1)
   let insertContent =
@@ -216,7 +216,7 @@ let havocInsert seed =
   Seed.insertBytesInto seed insertPosition insertContent
 
 let overwriteBytes seed =
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   let writeSize = chooseBlockSize (inputLen / 2) // 'inputLen' in orig. havoc
   (* '+ 1' is needed to allow overwriting the last byte. *)
   let writePosition = random.Next(inputLen - writeSize + 1)
@@ -232,13 +232,13 @@ let overwriteBytes seed =
 
 let removeBytes seed =
   // Assume input length is greater than 4.
-  let inputLen = Seed.getCurInputLen seed
+  let inputLen = Seed.getCurLength seed
   let removeSize = chooseBlockSize (inputLen / 2) // 'inputLen' in orig. havoc
   let removePosition = random.Next(inputLen - removeSize)
   Seed.removeBytesFrom seed removePosition removeSize
 
 let havocMutate opt seed =
-  let curInputLen = Seed.getCurInputLen seed
+  let curInputLen = Seed.getCurLength seed
   let maxN = if curInputLen < 2 then 8 elif curInputLen < 4 then 11 else 16
   match random.Next(maxN) with
   | 0 -> flipBit opt seed
@@ -263,8 +263,7 @@ let rec repRandomMutateAux seed opt depth depthLimit  accumSeed =
     repRandomMutateAux seed opt (depth + 1) depthLimit accumSeed
 
 let repRandomMutate seed opt =
-  let seed = Seed.shuffleInputCursor seed
-  let curInputLen = Seed.getCurInputLen seed
+  let curInputLen = Seed.getCurLength seed
   let maxMutateN = max 1 (int (float curInputLen * MutateRatio))
   let mutateN = min maxMutateN (1 <<< (1 + random.Next(HAVOC_STACK_POW)))
   let mutatedSeed = repRandomMutateAux seed opt 0 mutateN seed

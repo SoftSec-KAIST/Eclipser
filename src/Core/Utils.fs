@@ -109,13 +109,14 @@ let assertFileExists file =
 let removeFile file =
   try System.IO.File.Delete(file) with _ -> ()
 
-/// Remove a list of files, without throwing exception.
-let removeFiles files =
-  List.iter removeFile files
-
 /// Remove a directory, without throwing exception.
 let removeDir dir =
   try System.IO.Directory.Delete(dir, recursive = true) with _ -> ()
+
+/// Write a file, without throwing exception.
+let writeFile filePath content =
+  try System.IO.File.WriteAllBytes(filePath, content) with
+  | _ -> log "[Warning] Failed to write file '%s'" filePath
 
 /// Create a directory if not exists.
 let createDirectoryIfNotExists dir =

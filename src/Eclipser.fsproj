@@ -13,10 +13,8 @@
     <Compile Include="Core/ByteVal.fs" />
     <Compile Include="Core/Input.fs" />
     <Compile Include="Core/Seed.fs" />
-    <Compile Include="Core/TestCase.fs" />
     <Compile Include="Fuzz/Options.fs" />
     <Compile Include="Executor/Signal.fs" />
-    <Compile Include="Executor/Syscall.fs" />
     <Compile Include="Fuzz/GreyConcolic/BranchInfo.fs" />
     <Compile Include="Executor/Executor.fs" />
     <Compile Include="Fuzz/Manager.fs" />
@@ -33,9 +31,6 @@
     <Compile Include="Fuzz/RandomFuzz.fs" />
     <Compile Include="Fuzz/Initialize.fs" />
     <Compile Include="Fuzz/Fuzz.fs" />
-    <Compile Include="Main/Decode.fs" />
-    <Compile Include="Main/Replay.fs" />
-    <Compile Include="Main/Main.fs" />
   </ItemGroup>
 
   <ItemGroup>

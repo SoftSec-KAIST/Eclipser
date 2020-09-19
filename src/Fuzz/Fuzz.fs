@@ -1,30 +1,22 @@
 module Eclipser.Fuzz
 
-open System
 open Config
 open Utils
 open Options
 
-let findInputSrc opt seed =
-  if opt.FuzzMode = AutoFuzz
-  then Executor.getSyscallTrace opt seed
-  else Set.empty
-
-let rec moveCursorsAux opt isFromConcolic accConcolic accRandom items =
+let rec makeItemsAux opt isFromConcolic accConcolic accRandom items =
   match items with
   | [] -> (accConcolic, accRandom)
   | (priority, seed) :: tailItems ->
-    let inputSrcs = findInputSrc opt seed
-    let concSeeds = Seed.moveCursors seed isFromConcolic inputSrcs
-    let concItems = List.map (fun s -> (priority, s)) concSeeds
-    let randSeeds = seed :: Seed.moveSourceCursor seed inputSrcs
-    let randItems = List.map (fun s -> (priority, s)) randSeeds
+    let concItems = Seed.relocateCursor isFromConcolic seed
+                    |> List.map (fun s -> (priority, s))
+    let randItems = [(priority, seed)]
     let accConcolic = concItems @ accConcolic
     let accRandom = randItems @ accRandom
-    moveCursorsAux opt isFromConcolic accConcolic accRandom tailItems
+    makeItemsAux opt isFromConcolic accConcolic accRandom tailItems
 
-let moveCursors opt isFromConcolic seeds =
-  let concItems, randItems = moveCursorsAux opt isFromConcolic [] [] seeds
+let makeItems opt isFromConcolic seeds =
+  let concItems, randItems = makeItemsAux opt isFromConcolic [] [] seeds
   (List.rev concItems, List.rev randItems)
 
 /// Allocate testing resource for each strategy (grey-box concolic testing and
@@ -55,9 +47,12 @@ let rec greyConcolicLoop opt concQ randQ =
       log "Grey-box concolic on %A seed : %s" pr (Seed.toString seed)
     let newSeeds = GreyConcolic.run seed opt
     // Move cursors of newly generated seeds.
-    let newItemsForConc, newItemsForRand = moveCursors opt true newSeeds
+    let newItemsForConc, newItemsForRand = makeItems opt true newSeeds
     // Also generate seeds by just stepping the cursor of original seed.
-    let steppedItems = List.map (fun s -> (pr, s)) (Seed.proceedCursors seed)
+    let steppedItems =
+      match Seed.proceedCursor seed with
+      | None -> []
+      | Some s -> [(pr, s)]
     let concQ = List.fold ConcolicQueue.enqueue concQ newItemsForConc
     let concQ = List.fold ConcolicQueue.enqueue concQ steppedItems
     // Note that 'Stepped' seeds are not enqueued for random fuzzing.
@@ -86,7 +81,7 @@ let rec randFuzzLoop opt concQ randQ =
       log "Random fuzzing on %A seed : %s" pr (Seed.toString seed)
     let newSeeds = RandomFuzz.run seed opt
     // Move cursors of newly generated seeds.
-    let newItemsForConc, newItemsForRand = moveCursors opt false newSeeds
+    let newItemsForConc, newItemsForRand = makeItems opt false newSeeds
     let concQ = List.fold ConcolicQueue.enqueue concQ newItemsForConc
     let randQ = List.fold RandFuzzQueue.enqueue randQ newItemsForRand
     randFuzzLoop opt concQ randQ
@@ -124,14 +119,13 @@ let fuzzingTimer timeoutSec queueDir = async {
   log "===== Statistics ====="
   Manager.printStatistics ()
   log "Done, clean up and exit..."
-  Executor.cleanUpForkServer ()
-  Executor.cleanUpSharedMem ()
-  Executor.cleanUpFiles ()
+  Executor.cleanup ()
   removeDir queueDir
   exit (0)
 }
 
-let run args =
+[<EntryPoint>]
+let main args =
   let opt = parseFuzzOption args
   validateFuzzOption opt
   assertFileExists opt.TargetProg
@@ -139,13 +133,10 @@ let run args =
   log "[*] Time limit : %d sec" opt.Timelimit
   createDirectoryIfNotExists opt.OutDir
   Manager.initialize opt.OutDir
-  Executor.initialize opt.OutDir opt.Verbosity
-  Executor.initialize_exec Executor.TimeoutHandling.SendSigterm
-  Executor.prepareSharedMem ()
-  if opt.FuzzMode = StdinFuzz || opt.FuzzMode = FileFuzz then
-    Executor.initForkServer opt
+  Executor.initialize opt
   let queueDir = sprintf "%s/.internal" opt.OutDir
   let greyConcQueue, randFuzzQueue = Initialize.initQueue opt queueDir
   log "[*] Fuzzing starts"
   Async.Start (fuzzingTimer opt.Timelimit queueDir)
   fuzzLoop opt greyConcQueue randFuzzQueue
+  0 // Unreachable

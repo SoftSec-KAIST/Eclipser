@@ -129,14 +129,10 @@ module GreySolver =
   let solveMonotonic seed opt accRes (targPt, mono) =
     let maxLenR = Seed.queryUpdateBound seed Right
     let maxLenL = Seed.queryUpdateBound seed Left
-    match seed.SourceCursor with
-    | InputKind.Args ->
-      binarySearch seed opt Right maxLenR targPt accRes mono
-    | _ -> // Try big endian first, and stop if any result is found.
-      let res = binarySearch seed opt Right maxLenR targPt [] mono
-      if List.isEmpty res
-      then binarySearch seed opt Left maxLenL targPt accRes mono
-      else res @ accRes
+    // Try big endian first, and stop if any result is found.
+    let res = binarySearch seed opt Right maxLenR targPt [] mono
+    if not (List.isEmpty res) then res @ accRes
+    else binarySearch seed opt Left maxLenL targPt accRes mono
 
   let solveMonotonics seed opt monotonics =
     let solveN = opt.NSolve / 3

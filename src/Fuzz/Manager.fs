@@ -21,9 +21,6 @@ let mutable private segfaultCount = 0
 let mutable private illegalInstrCount = 0
 let mutable private fpErrorCount = 0
 let mutable private abortCount = 0
-let mutable private argCrashCount = 0
-let mutable private stdinCrashCount = 0
-let mutable private fileCrashCount = 0
 let mutable private crashCount = 0
 let mutable private argTestCaseCount = 0
 let mutable private stdinTestCaseCount = 0
@@ -59,10 +56,6 @@ let printStatistics () =
   log "  Illegal instruction : %d" illegalInstrCount
   log "  Floating point error : %d" fpErrorCount
   log "  Program abortion : %d" abortCount
-  log "Input vector of crashes"
-  log "  Argument : %d" argCrashCount
-  log "  Stdin : %d" stdinCrashCount
-  log "  File : %d" fileCrashCount
 
 let private updateCrashCount seed exitSig =
   match exitSig with
@@ -71,50 +64,39 @@ let private updateCrashCount seed exitSig =
   | Signal.SIGFPE -> fpErrorCount <- fpErrorCount + 1
   | Signal.SIGABRT -> abortCount <- abortCount + 1
   | _ -> failwith "updateCrashCount() called with a non-crashing exit signal"
-  match seed.SourceCursor with
-  | Args -> argCrashCount <- argCrashCount + 1
-  | StdIn -> stdinCrashCount <- stdinCrashCount + 1
-  | File -> fileCrashCount <- fileCrashCount + 1
   crashCount <- crashCount + 1
 
 let private updateTestcaseCount seed =
-  match seed.SourceCursor with
-  | Args -> argTestCaseCount <- argTestCaseCount + 1
-  | StdIn -> stdinTestCaseCount <- stdinTestCaseCount + 1
-  | File -> fileTestCaseCount <- fileTestCaseCount + 1
   testCaseCount <- testCaseCount + 1
 
 (*** Test case storing functions ***)
 
 let private dumpCrash opt seed exitSig =
   if opt.Verbosity >= 0 then log "Save crash seed : %s" (Seed.toString seed)
-  let crashTC = TestCase.fromSeed seed
-  let crashName = sprintf "crash-%d" crashCount
+  let crashName = sprintf "crash-%05d" crashCount
   let crashPath = System.IO.Path.Combine(crashDir, crashName)
-  System.IO.File.WriteAllText(crashPath, (TestCase.toJSON crashTC))
+  System.IO.File.WriteAllBytes(crashPath, Seed.concretize seed)
   updateCrashCount seed exitSig
 
 let private dumpTestCase seed =
-  let tc = TestCase.fromSeed seed
-  let tcName = sprintf "tc-%d" testCaseCount
+  let tcName = sprintf "tc-%05d" testCaseCount
   let tcPath = System.IO.Path.Combine(testcaseDir, tcName)
-  System.IO.File.WriteAllText(tcPath, (TestCase.toJSON tc))
+  System.IO.File.WriteAllBytes(tcPath, Seed.concretize seed)
   updateTestcaseCount seed
 
-let private checkCrash opt exitSig tc edgeHash =
+let private checkCrash opt exitSig seed edgeHash =
   if Signal.isCrash exitSig && addCrashHash edgeHash
   then (true, exitSig)
   elif Signal.isTimeout exitSig then // Check again with native execution
-    let exitSig' = Executor.nativeExecute opt tc
+    let exitSig' = Executor.nativeExecute opt seed
     if Signal.isCrash exitSig' && addCrashHash edgeHash
     then (true, exitSig')
     else (false, exitSig')
   else (false, exitSig)
 
 let save opt seed newN pathHash edgeHash exitSig isInitSeed =
-  let tc = TestCase.fromSeed seed
   let isNewPath = addPathHash pathHash
-  let isNewCrash, exitSig' = checkCrash opt exitSig tc edgeHash
+  let isNewCrash, exitSig' = checkCrash opt exitSig seed edgeHash
   if newN > 0 || isInitSeed then dumpTestCase seed
   if isNewCrash then dumpCrash opt seed exitSig'
   isNewPath

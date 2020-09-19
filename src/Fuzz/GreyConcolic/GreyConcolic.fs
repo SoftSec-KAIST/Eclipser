@@ -47,7 +47,7 @@ let checkByProducts opt spawnedSeeds =
 
 let run seed opt =
   let curByteVal = Seed.getCurByteVal seed
-  let minByte, maxByte = ByteVal.getMinMax curByteVal seed.SourceCursor
+  let minByte, maxByte = ByteVal.getMinMax curByteVal seed.Source
   if minByte = maxByte then
     let seedStr = Seed.toString seed
     failwithf "Cursor pointing to Fixed ByteVal %s" seedStr

@@ -6,11 +6,11 @@ open System.Runtime.InteropServices
 open Config
 open Utils
 open Options
-open Syscall
-open TestCase
+
+let private WHITES = [| ' '; '\t'; '\n' |]
 
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
-type Tracer = Coverage | BranchAt | BranchAll | Syscall | BBCount
+type Tracer = Coverage | BranchAt | BranchAll | BBCount
 
 /// Specifies the method to handle execution timeout. It is necessary to use GDB
 /// when replaying test cases against a gcov-compiled binary, to log coverage
@@ -50,8 +50,6 @@ let coverageTracerX86 = sprintf "%s/qemu-trace-pathcov-x86" buildDir
 let coverageTracerX64 = sprintf "%s/qemu-trace-pathcov-x64" buildDir
 let branchTracerX86 = sprintf "%s/qemu-trace-feedback-x86" buildDir
 let branchTracerX64 = sprintf "%s/qemu-trace-feedback-x64" buildDir
-let syscallTracerX86 = sprintf "%s/qemu-trace-syscall-x86" buildDir
-let syscallTracerX64 = sprintf "%s/qemu-trace-syscall-x64" buildDir
 let bbCountTracerX86 = sprintf "%s/qemu-trace-bbcount-x86" buildDir
 let bbCountTracerX64 = sprintf "%s/qemu-trace-bbcount-x64" buildDir
 
@@ -63,54 +61,65 @@ let selectTracer tracer arch =
   | BranchAt, X64 -> branchTracerX64
   | BranchAll, X86 -> branchTracerX86
   | BranchAll, X64 -> branchTracerX64
-  | Syscall, X86 -> syscallTracerX86
-  | Syscall, X64 -> syscallTracerX64
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
 let mutable pathHashLog = ""
 let mutable branchTraceLog = ""
 let mutable coverageLog = ""
-let mutable syscallTraceLog = ""
 let mutable dbgLog = ""
+let mutable forkServerEnabled = false
 
-// TODO : Reorder functions and create a top-level function
-let cleanUpSharedMem () =
-  if release_shared_mem() < 0 then log "Failed to release shared memory!"
-
-let prepareSharedMem () =
-  let shmID = prepare_shared_mem()
-  if shmID < 0 then failwith "Failed to allcate shared memory"
-  set_env("CK_SHM_ID", string shmID)
-
-let initialize outdir verbosity =
-  pathHashLog <- System.IO.Path.Combine(outdir, ".path_hash")
-  branchTraceLog <- System.IO.Path.Combine(outdir, ".branch_trace")
-  coverageLog <- System.IO.Path.Combine(outdir, ".coverage")
-  syscallTraceLog <- System.IO.Path.Combine(outdir, ".syscall_trace")
-  dbgLog <- System.IO.Path.Combine(outdir, ".debug_msg")
+let initialize opt =
+  let outDir = opt.OutDir
+  let verbosity = opt.Verbosity
+  // Set environment variables for the instrumentor.
+  pathHashLog <- System.IO.Path.Combine(outDir, ".path_hash")
+  branchTraceLog <- System.IO.Path.Combine(outDir, ".branch_trace")
+  coverageLog <- System.IO.Path.Combine(outDir, ".coverage")
+  dbgLog <- System.IO.Path.Combine(outDir, ".debug_msg")
   set_env("CK_HASH_LOG", System.IO.Path.GetFullPath(pathHashLog))
   set_env("CK_FEED_LOG", System.IO.Path.GetFullPath(branchTraceLog))
   set_env("CK_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
-  set_env("CK_SYSCALL_LOG", System.IO.Path.GetFullPath(syscallTraceLog))
   if verbosity >= 2 then
     set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
-  // Set all the other env. variables in advance, to avoid affecting path hash.
+  // Set other environment variables in advance, to avoid affecting path hash.
   set_env("CK_MODE", "0")
   set_env("CK_FEED_ADDR", "0")
   set_env("CK_FEED_IDX", "0")
-  set_env("CK_FORK_SERVER", "0") // In default, fork server is not enabled.
   set_env("CK_CTX_SENSITIVITY", string CtxSensitivity)
+  initialize_exec TimeoutHandling.SendSigterm
+  // Initialize shared memory.
+  let shmID = prepare_shared_mem()
+  if shmID < 0 then failwith "Failed to allcate shared memory"
+  set_env("CK_SHM_ID", string shmID)
+  // Initialize fork server.
+  forkServerEnabled <- true
+  set_env("CK_FORK_SERVER", "1")
+  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let coverageTracer = selectTracer Coverage opt.Architecture
+  let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
+  let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
+  if pidCoverage = -1 then
+    failwith "Failed to initialize fork server for coverage tracer"
+  let branchTracer = selectTracer BranchAll opt.Architecture
+  let args = Array.append [|branchTracer; opt.TargetProg|] cmdLine
+  let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
+  if pidBranch = -1 then
+    failwith "Failed to initialize fork server for branch tracer"
 
-let cleanUpFiles () =
-  removeFiles [pathHashLog; branchTraceLog; coverageLog]
-  removeFiles [syscallTraceLog; dbgLog]
+let cleanup () =
+  if forkServerEnabled then kill_forkserver ()
+  if release_shared_mem() < 0 then log "Failed to release shared memory!"
+  removeFile pathHashLog
+  removeFile branchTraceLog
+  removeFile coverageLog
+  removeFile dbgLog
 
 (*** Statistics ***)
 
 let mutable totalExecutions = 0
 let mutable phaseExecutions = 0
-
 let getTotalExecutions () = totalExecutions
 let getPhaseExecutions () = phaseExecutions
 let resetPhaseExecutions () = phaseExecutions <- 0
@@ -128,70 +137,32 @@ let incrExecutionCount tracerTyp =
   totalExecutions <- totalExecutions + 1
   phaseExecutions <- phaseExecutions + 1
 
-(*** Fork server ***)
-
-let mutable forkServerEnabled = false
-
-let initForkServer opt =
-  forkServerEnabled <- true
-  set_env("CK_FORK_SERVER", "1")
-  let white = [| ' '; '\t'; '\n' |]
-  let initArgStr = opt.InitArg
-  let initArgs = initArgStr.Split(white, StringSplitOptions.RemoveEmptyEntries)
-  let coverageTracer = selectTracer Coverage opt.Architecture
-  let args = Array.append [|coverageTracer; opt.TargetProg|] initArgs
-  let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
-  if pidCoverage = -1 then
-    failwith "Failed to initialize fork server for coverage tracer"
-  let branchTracer = selectTracer BranchAll opt.Architecture
-  let args = Array.append [|branchTracer; opt.TargetProg|] initArgs
-  let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
-  if pidBranch = -1 then
-    failwith "Failed to initialize fork server for branch tracer"
-
 let abandonForkServer () =
   log "Abandon fork server"
   forkServerEnabled <- false
   set_env("CK_FORK_SERVER", "0")
   kill_forkserver ()
 
-let cleanUpForkServer () =
-  if forkServerEnabled then kill_forkserver ()
-
 (*** File handling utilities ***)
-
-let touchFile filename =
-  // Explicitly delete file before creating one, to avoid hanging when the
-  // specified file already exists as a FIFO.
-  try System.IO.File.Delete(filename)
-      System.IO.File.WriteAllBytes(filename, [|0uy|])
-  with _ -> ()
-
-let writeFile filename content =
-  try System.IO.File.WriteAllBytes(filename, content) with
-  | _ -> log "[Warning] Failed to write file '%s'" filename
 
 let readAllLines filename =
   try List.ofSeq (System.IO.File.ReadLines filename) with
   | :? System.IO.FileNotFoundException -> []
 
-let isProgPath targetProg argStr =
-  try Path.GetFullPath argStr = targetProg with
-  | _ -> false
+let private setupFile seed =
+  match seed.Source with
+  | StdInput -> ()
+  | FileInput filePath -> writeFile filePath (Seed.concretize seed)
 
-let setupFiles targetProg (tc: TestCase) autoFuzzMode =
-  let argFiles =
-    if autoFuzzMode then
-      // Create files with argument strings as name, to identify input sources.
-      List.ofArray tc.Args
-      |> List.filter (fun arg -> not (isProgPath targetProg arg))
-      |> (fun args -> List.iter touchFile args; args)
-    else []
-  let inputFile = tc.FilePath
-  if inputFile <> "" then
-    writeFile inputFile tc.FileContent
-    inputFile :: argFiles
-  else argFiles
+let private clearFile seed =
+  match seed.Source with
+  | StdInput -> ()
+  | FileInput filePath -> removeFile filePath
+
+let private prepareStdIn seed =
+  match seed.Source with
+  | StdInput -> Seed.concretize seed
+  | FileInput filePath -> [| |]
 
 (*** Tracer result parsing functions ***)
 
@@ -270,118 +241,109 @@ let private readBranchTrace opt filename tryVal =
 
 (*** Tracer execute functions ***)
 
-let private runTracer (tc: TestCase) tracerType opt =
+let private runTracer tracerType opt (stdin: byte array) =
   incrExecutionCount tracerType
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
   let usePty = opt.UsePty
   let tracer = selectTracer tracerType opt.Architecture
-  let args = Array.append [|tracer; targetProg|] tc.Args
+  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let args = Array.append [|tracer; targetProg|] cmdLine
   let argc = args.Length
-  exec(argc, args, tc.StdIn.Length, tc.StdIn, timeout, usePty)
+  exec(argc, args, stdin.Length, stdin, timeout, usePty)
 
-let private runCoverageTracerForked (tc: TestCase) opt =
+let private runCoverageTracerForked opt (stdin: byte array) =
   incrExecutionCount Coverage
   let timeout = opt.ExecTimeout
-  let signal = exec_fork_coverage(timeout, tc.StdIn.Length, tc.StdIn)
+  let signal = exec_fork_coverage(timeout, stdin.Length, stdin)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
-let private runBranchTracerForked (tc: TestCase) tracerType opt =
+let private runBranchTracerForked tracerType opt (stdin: byte array) =
   incrExecutionCount tracerType
   let timeout = opt.ExecTimeout
-  let signal = exec_fork_branch(timeout, tc.StdIn.Length, tc.StdIn)
+  let signal = exec_fork_branch(timeout, stdin.Length, stdin)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
 (*** Top-level tracer executor functions ***)
 
 let getEdgeHash opt seed =
-  let tc = TestCase.fromSeed seed
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
   set_env("CK_MODE", string (int CoverageTracerMode.EdgeHash))
-  let _ = if forkServerEnabled
-          then runCoverageTracerForked tc opt
-          else runTracer tc Coverage opt
+  setupFile seed
+  let stdin = prepareStdIn seed
+  if forkServerEnabled then runCoverageTracerForked opt stdin
+  else runTracer Coverage opt stdin
+  |> ignore
   let edgeHash = parseExecHash coverageLog
-  removeFiles files
+  clearFile seed
   edgeHash
 
 let getCoverage opt seed =
-  let tc = TestCase.fromSeed seed
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
   set_env("CK_MODE", string (int CoverageTracerMode.CountNewEdge))
+  setupFile seed
+  let stdin = prepareStdIn seed
   let exitSig = if forkServerEnabled
-                then runCoverageTracerForked tc opt
-                else runTracer tc Coverage opt
+                then runCoverageTracerForked opt stdin
+                else runTracer Coverage opt stdin
   let newEdgeCnt, pathHash, edgeHash = parseCoverage coverageLog
-  removeFiles files
+  clearFile seed
   (newEdgeCnt, pathHash, edgeHash, exitSig)
 
 let getEdgeSet opt seed =
-  let tc = TestCase.fromSeed seed
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
   set_env("CK_MODE", string (int CoverageTracerMode.EdgeSet))
-  let _ = if forkServerEnabled
-          then runCoverageTracerForked tc opt
-          else runTracer tc Coverage opt
+  setupFile seed
+  let stdin = prepareStdIn seed
+  if forkServerEnabled then runCoverageTracerForked opt stdin
+  else runTracer Coverage opt stdin
+  |> ignore
   let edgeSet = readEdgeSet opt coverageLog
-  removeFiles files
+  clearFile seed
   edgeSet
 
 let getBranchTrace opt seed tryVal =
-  let tc = TestCase.fromSeed seed
   set_env("CK_FEED_ADDR", "0")
   set_env("CK_FEED_IDX", "0")
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
-  let _ = if forkServerEnabled
-          then runBranchTracerForked tc BranchAll opt
-          else runTracer tc BranchAll opt
+  setupFile seed
+  let stdin = prepareStdIn seed
+  if forkServerEnabled then runBranchTracerForked BranchAll opt stdin
+  else runTracer BranchAll opt stdin
+  |> ignore
   let pathHash = parseExecHash pathHashLog
   let branchTrace = readBranchTrace opt branchTraceLog tryVal
-  removeFiles (pathHashLog :: branchTraceLog :: files)
+  clearFile seed
+  removeFile pathHashLog
+  removeFile branchTraceLog
   pathHash, branchTrace
 
 let getBranchInfoAt opt seed tryVal targPoint =
-  let tc = TestCase.fromSeed seed
   set_env("CK_FEED_ADDR", sprintf "%016x" targPoint.Addr)
   set_env("CK_FEED_IDX", sprintf "%016x" targPoint.Idx)
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
-  let _ = if forkServerEnabled
-          then runBranchTracerForked tc BranchAt opt
-          else runTracer tc BranchAt opt
+  setupFile seed
+  let stdin = prepareStdIn seed
+  if forkServerEnabled then runBranchTracerForked BranchAt opt stdin
+  else runTracer BranchAt opt stdin
+  |> ignore
   let pathHash = parseExecHash pathHashLog
   let branchInfoOpt =
     match readBranchTrace opt branchTraceLog tryVal with
     | [] -> None
     | [ branchInfo ] -> Some branchInfo
     | branchInfos -> None
-  removeFiles (pathHashLog :: branchTraceLog :: files)
+  clearFile seed
+  removeFile pathHashLog
+  removeFile branchTraceLog
   (pathHash, branchInfoOpt)
 
-let getSyscallTrace opt seed =
-  let tc = TestCase.fromSeed seed
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
-  let _ = runTracer tc Syscall opt
-  let syscallTrace = readAllLines syscallTraceLog
-  let inputSrcs = checkInputSource opt.TargetProg tc.Args syscallTrace
-  removeFiles (syscallTraceLog :: files)
-  inputSrcs
-
-let nativeExecute opt tc =
+let nativeExecute opt seed =
   let targetProg = opt.TargetProg
-  let autoFuzzMode = opt.FuzzMode = AutoFuzz
-  let files = setupFiles opt.TargetProg tc autoFuzzMode
+  setupFile seed
+  let stdin = prepareStdIn seed
   let timeout = opt.ExecTimeout
   let usePty = opt.UsePty
-  let args = Array.append [| targetProg |] tc.Args
+  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let args = Array.append [| targetProg |] cmdLine
   let argc = args.Length
-  let signal = exec(argc, args, tc.StdIn.Length, tc.StdIn, timeout, usePty)
-  removeFiles files
+  let signal = exec(argc, args, stdin.Length, stdin, timeout, usePty)
+  clearFile seed
   signal
