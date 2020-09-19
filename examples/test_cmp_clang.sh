@@ -6,5 +6,5 @@ clang cmp.c -o cmp.bin -static -g || exit 1
 rm -rf box
 mkdir box
 cd box
-dotnet ../../build/Eclipser.dll fuzz -p ../cmp.bin -t 20 -v 1 -o output \
-  --src auto --maxarglen 8 --maxfilelen 16
+dotnet ../../build/Eclipser.dll \
+  -p ../cmp.bin -t 5 -v 1 -o output -f input --arg input

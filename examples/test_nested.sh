@@ -6,5 +6,5 @@ gcc nested.c -o nested.bin -static -g || exit 1
 rm -rf box
 mkdir box
 cd box
-dotnet ../../build/Eclipser.dll fuzz -p ../nested.bin -t 20 -v 1 -o output \
-  --src auto --maxfilelen 16
+dotnet ../../build/Eclipser.dll \
+  -p ../nested.bin -t 20 -v 1 -o output -f input --arg input

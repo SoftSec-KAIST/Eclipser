@@ -5,5 +5,6 @@ gcc loop.c -o loop.bin -static -g || exit 1
 rm -rf box
 mkdir box
 cd box
-dotnet ../../build/Eclipser.dll fuzz -p ../loop.bin -t 60 -v 1 -o output \
-  --src auto --maxfilelen 16 --nsolve 10
+dotnet ../../build/Eclipser.dll \
+  -p ../loop.bin -t 90 -v 1 -o output -f input --arg input --greyconcoliconly \
+  --nsolve 10
