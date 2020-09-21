@@ -20,8 +20,6 @@ type FuzzerCLI =
   // Options related to fuzzing process
   | [<Unique>] NSolve of int
   | [<Unique>] NSpawn of int
-  | [<Unique>] GreyConcolicOnly
-  | [<Unique>] RandFuzzOnly
 with
   interface IArgParserTemplate with
     member s.Usage =
@@ -30,8 +28,8 @@ with
       | Verbose _ -> "Verbosity level to control debug messages (default:0)."
       | Timelimit _ -> "Timeout for fuzz testing (in seconds)."
       | OutputDir _ -> "Directory to store testcase outputs."
-      // Options related to seed initialization
       | InputDir _ -> "Directory containing initial seeds."
+      // Options related to seed initialization
       | Arg _ -> "Command-line argument of program under test."
       | Filepath _ -> "File input's (fixed) path"
       // Options related to execution of program
@@ -44,8 +42,6 @@ with
                     "the paper."
       | NSpawn _ -> "Number of byte values to initially spawn in grey-box " +
                     "concolic testing. 'N_spawn' parameter in the paper."
-      | GreyConcolicOnly -> "Perform grey-box concolic testing only."
-      | RandFuzzOnly -> "Perform random fuzzing only."
 
 type FuzzOption = {
   Verbosity         : int
@@ -63,8 +59,6 @@ type FuzzOption = {
   // Options related to test case generation
   NSolve            : int
   NSpawn            : int
-  GreyConcolicOnly  : bool
-  RandFuzzOnly      : bool
 }
 
 let parseFuzzOption (args: string array) =
@@ -88,13 +82,8 @@ let parseFuzzOption (args: string array) =
     Arg = r.GetResult (<@ Arg @>, defaultValue = "")
     // Options related to test case generation
     NSolve = r.GetResult(<@ NSolve @>, defaultValue = 600)
-    NSpawn = r.GetResult(<@ NSpawn @>, defaultValue = 10)
-    GreyConcolicOnly = r.Contains(<@ GreyConcolicOnly @>)
-    RandFuzzOnly = r.Contains(<@ RandFuzzOnly @>) }
+    NSpawn = r.GetResult(<@ NSpawn @>, defaultValue = 10) }
 
 let validateFuzzOption opt =
-  if opt.GreyConcolicOnly && opt.RandFuzzOnly then
-    printLine "Cannot specify '--greyconcoliconly' and 'randfuzzonly' together."
-    exit 1
   if opt.NSpawn < 3 then
     failwith "Should provide N_spawn greater than or equal to 3"

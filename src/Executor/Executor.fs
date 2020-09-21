@@ -10,7 +10,7 @@ open Options
 let private WHITES = [| ' '; '\t'; '\n' |]
 
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
-type Tracer = Coverage | BranchAt | BranchAll | BBCount
+type Tracer = Coverage | Branch | BBCount
 
 /// Specifies the method to handle execution timeout. It is necessary to use GDB
 /// when replaying test cases against a gcov-compiled binary, to log coverage
@@ -57,10 +57,8 @@ let selectTracer tracer arch =
   match tracer, arch with
   | Coverage, X86 -> coverageTracerX86
   | Coverage, X64 -> coverageTracerX64
-  | BranchAt, X86 -> branchTracerX86
-  | BranchAt, X64 -> branchTracerX64
-  | BranchAll, X86 -> branchTracerX86
-  | BranchAll, X64 -> branchTracerX64
+  | Branch, X86 -> branchTracerX86
+  | Branch, X64 -> branchTracerX64
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
@@ -102,7 +100,7 @@ let initialize opt =
   let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
   if pidCoverage = -1 then
     failwith "Failed to initialize fork server for coverage tracer"
-  let branchTracer = selectTracer BranchAll opt.Architecture
+  let branchTracer = selectTracer Branch opt.Architecture
   let args = Array.append [|branchTracer; opt.TargetProg|] cmdLine
   let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
   if pidBranch = -1 then
@@ -115,27 +113,6 @@ let cleanup () =
   removeFile branchTraceLog
   removeFile coverageLog
   removeFile dbgLog
-
-(*** Statistics ***)
-
-let mutable totalExecutions = 0
-let mutable phaseExecutions = 0
-let getTotalExecutions () = totalExecutions
-let getPhaseExecutions () = phaseExecutions
-let resetPhaseExecutions () = phaseExecutions <- 0
-
-(*** Resource scheduling ***)
-
-let mutable allowedResource = 0
-let allocateResource n = allowedResource <- n
-let isResourceExhausted () = allowedResource <= 0
-let incrExecutionCount tracerTyp =
-  // TODO: Add calibration mode like AFL, and estimate the weight of each tracer
-  // type based on execution time.
-  let diminish = if tracerTyp = BranchAll then 4 else 1
-  allowedResource <- allowedResource - diminish
-  totalExecutions <- totalExecutions + 1
-  phaseExecutions <- phaseExecutions + 1
 
 let abandonForkServer () =
   log "Abandon fork server"
@@ -242,7 +219,6 @@ let private readBranchTrace opt filename tryVal =
 (*** Tracer execute functions ***)
 
 let private runTracer tracerType opt (stdin: byte array) =
-  incrExecutionCount tracerType
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
   let usePty = opt.UsePty
@@ -253,14 +229,12 @@ let private runTracer tracerType opt (stdin: byte array) =
   exec(argc, args, stdin.Length, stdin, timeout, usePty)
 
 let private runCoverageTracerForked opt (stdin: byte array) =
-  incrExecutionCount Coverage
   let timeout = opt.ExecTimeout
   let signal = exec_fork_coverage(timeout, stdin.Length, stdin)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
-let private runBranchTracerForked tracerType opt (stdin: byte array) =
-  incrExecutionCount tracerType
+let private runBranchTracerForked opt (stdin: byte array) =
   let timeout = opt.ExecTimeout
   let signal = exec_fork_branch(timeout, stdin.Length, stdin)
   if signal = Signal.ERROR then abandonForkServer ()
@@ -306,8 +280,8 @@ let getBranchTrace opt seed tryVal =
   set_env("CK_FEED_IDX", "0")
   setupFile seed
   let stdin = prepareStdIn seed
-  if forkServerEnabled then runBranchTracerForked BranchAll opt stdin
-  else runTracer BranchAll opt stdin
+  if forkServerEnabled then runBranchTracerForked opt stdin
+  else runTracer Branch opt stdin
   |> ignore
   let pathHash = parseExecHash pathHashLog
   let branchTrace = readBranchTrace opt branchTraceLog tryVal
@@ -321,8 +295,8 @@ let getBranchInfoAt opt seed tryVal targPoint =
   set_env("CK_FEED_IDX", sprintf "%016x" targPoint.Idx)
   setupFile seed
   let stdin = prepareStdIn seed
-  if forkServerEnabled then runBranchTracerForked BranchAt opt stdin
-  else runTracer BranchAt opt stdin
+  if forkServerEnabled then runBranchTracerForked opt stdin
+  else runTracer Branch opt stdin
   |> ignore
   let pathHash = parseExecHash pathHashLog
   let branchInfoOpt =

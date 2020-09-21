@@ -1,27 +1,7 @@
 module Eclipser.GreyConcolic
 
-open Config
 open Utils
 open Options
-
-// Mutable variables for statistics management.
-let mutable private recentExecNums: Queue<int> = Queue.empty
-let mutable private recentNewPathNums: Queue<int> = Queue.empty
-
-let updateStatus opt execN newPathN =
-  let recentExecNums' = if Queue.getSize recentExecNums > RecentRoundN
-                        then Queue.drop recentExecNums
-                        else recentExecNums
-  recentExecNums <- Queue.enqueue recentExecNums' execN
-  let recentNewPathNums' = if Queue.getSize recentNewPathNums > RecentRoundN
-                           then Queue.drop recentNewPathNums
-                           else recentNewPathNums
-  recentNewPathNums <- Queue.enqueue recentNewPathNums' newPathN
-
-let evaluateEfficiency () =
-  let execNum = List.sum (Queue.elements recentExecNums)
-  let newPathNum = List.sum (Queue.elements recentNewPathNums)
-  if execNum = 0 then 1.0 else float newPathNum / float execNum
 
 let printFoundSeed verbosity seed newEdgeN =
   let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""

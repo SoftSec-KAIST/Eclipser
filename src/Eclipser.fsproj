@@ -28,8 +28,6 @@
     <Compile Include="Fuzz/GreyConcolic/Solve.fs" />
     <Compile Include="Fuzz/GreyConcolic/GreyConcolic.fs" />
     <Compile Include="Fuzz/SeedQueue.fs" />
-    <Compile Include="Fuzz/RandomFuzz.fs" />
-    <Compile Include="Fuzz/Initialize.fs" />
     <Compile Include="Fuzz/Fuzz.fs" />
   </ItemGroup>
 
@@ -37,7 +35,6 @@
     <PackageReference Include="FSharp.Core" Version="4.3.2" />
     <PackageReference Include="Argu" Version="5.1.0" />
     <PackageReference Include="FSharp.Data" Version="3.0.0" />
-    <PackageReference Include="FsPickler" Version="5.2" />
     <PackageReference Include="MathNet.Numerics" Version="4.4.0" />
   </ItemGroup>
 

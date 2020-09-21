@@ -6,5 +6,4 @@ rm -rf box
 mkdir box
 cd box
 dotnet ../../build/Eclipser.dll \
-  -p ../loop.bin -t 90 -v 1 -o output -f input --arg input --greyconcoliconly \
-  --nsolve 10
+  -p ../loop.bin -t 90 -v 1 -o output -f input --arg input --nsolve 10

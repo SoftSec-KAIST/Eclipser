@@ -101,14 +101,14 @@ module Seed =
     | Some idx -> byteVals'.Length - idx - 1
 
   // Auxiliary function for queryUpdateBound()
-  let private queryUpdateBoundRight (byteVals: ByteVal []) byteCursor maxLen =
+  let private queryUpdateBoundRight (byteVals: ByteVal []) byteCursor =
     let byteVals' =
       if byteCursor + MaxChunkLen < byteVals.Length
       then byteVals.[byteCursor .. byteCursor + MaxChunkLen]
       else byteVals.[byteCursor .. ]
     // We use an heuristic to bound update until the adjacent *fixed* ByteVal.
     match Array.tryFindIndex ByteVal.isFixed byteVals' with
-    | None -> min MaxChunkLen (maxLen - byteCursor)
+    | None -> MaxChunkLen
     | Some idx -> idx
 
   /// Find the maximum length that can be updated for grey-box concolic testing.
@@ -118,7 +118,7 @@ module Seed =
     match direction with
     | Stay -> failwith "queryUpdateBound() cannot be called with 'Stay'"
     | Left -> queryUpdateBoundLeft byteVals byteCursor
-    | Right -> queryUpdateBoundRight byteVals byteCursor MAX_INPUT_LEN
+    | Right -> queryUpdateBoundRight byteVals byteCursor
 
   /// Get adjacent concrete byte values, toward the given direction.
   let queryNeighborBytes seed direction =
@@ -169,53 +169,6 @@ module Seed =
     let byteCursor = seed.CursorPos
     let newByteVals = Array.copy curByteVals
     newByteVals.[byteCursor] <- byteVal
-    { seed with ByteVals = newByteVals }
-
-  /// Update the ByteVal at given offset of the seed.
-  let updateByteValAt seed pos byteVal =
-    let curByteVals = seed.ByteVals
-    let newByteVals = Array.copy curByteVals
-    newByteVals.[pos] <- byteVal
-    { seed with ByteVals = newByteVals }
-
-  /// Update the bytes of the seed, starting from the given offset.
-  /// Approximate path conditions of the updated ByteVals are abandoned.
-  let updateBytesFrom seed pos bytes =
-    let curByteVals = seed.ByteVals
-    let newByteVals = Array.copy curByteVals
-    Array.iteri (fun i b -> newByteVals.[pos + i] <- Undecided b) bytes
-    { seed with ByteVals = newByteVals }
-
-  /// Flip the bit at the given byte/bit offset of the seed.
-  let flipBitAt seed bytePos bitPos =
-    let curByteVals = seed.ByteVals
-    let newByteVals = Array.copy curByteVals
-    let curByteVal = curByteVals.[bytePos]
-    let curByte = ByteVal.getConcreteByte curByteVal
-    let newByte = curByte ^^^ ((byte 1) <<< bitPos)
-    newByteVals.[bytePos] <- Undecided newByte
-    { seed with ByteVals = newByteVals }
-
-  /// Insert bytes at the given offset of the seed.
-  let insertBytesInto seed pos bytes =
-    let curByteVals = seed.ByteVals
-    let curBytesLen = Array.length curByteVals
-    let headByteVals = curByteVals.[0 .. (pos - 1)]
-    let tailByteVals = curByteVals.[pos .. (curBytesLen - 1)]
-    let byteVals = Array.map (fun b -> Undecided b) bytes
-    let newByteVals = Array.concat [headByteVals; byteVals; tailByteVals]
-    let newByteVals = if Array.length newByteVals > MAX_INPUT_LEN
-                      then newByteVals.[.. (MAX_INPUT_LEN - 1)]
-                      else newByteVals
-    { seed with ByteVals = newByteVals }
-
-  /// Remove bytes starting from the given offset of the seed.
-  let removeBytesFrom seed pos n =
-    let curByteVals = seed.ByteVals
-    let curBytesLen = Array.length curByteVals
-    let headByteVals = curByteVals.[0 .. (pos - 1)]
-    let tailByteVals = curByteVals.[(pos + n) .. (curBytesLen - 1)]
-    let newByteVals = Array.append headByteVals tailByteVals
     { seed with ByteVals = newByteVals }
 
   (************************* Cursor update functions *************************)
@@ -282,11 +235,11 @@ module Seed =
 
   /// Return seeds with byte cursor updated to point unfixed ByteVal. Probing
   /// should occur in both left side and right side.
-  let relocateCursor isFromConcolic seed =
+  let relocateCursor seed =
     let curByteVal = getCurByteVal seed
     let leftwardSeed = setByteCursorDir seed Left
     let leftwardSeeds = // Avoid sampling at the same offset.
-      if isFromConcolic && ByteVal.isSampledByte curByteVal then
+      if ByteVal.isSampledByte curByteVal then
         match stepCursor leftwardSeed with
         | None -> [] | Some s -> [ s ]
       else [ leftwardSeed ]
