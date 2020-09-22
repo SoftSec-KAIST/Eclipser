@@ -3,6 +3,9 @@ namespace Eclipser
 open Config
 open Utils
 
+/// Direction that the cursor of a 'Seed' should move toward.
+type Direction = Stay | Left | Right
+
 /// An input that consists of an array of ByteVals.
 type Seed = {
   /// An array of ByteVal elements.

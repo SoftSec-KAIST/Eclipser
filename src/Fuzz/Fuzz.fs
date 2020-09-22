@@ -4,6 +4,23 @@ open System.Threading
 open Utils
 open Options
 
+let private printFoundSeed verbosity seed newEdgeN =
+  let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""
+  if verbosity >= 1 then
+    log "[*] Found by grey-box concolic %s: %s" edgeStr (Seed.toString seed)
+  elif verbosity >= 0 then
+    log "[*] Found by grey-box concolic %s" edgeStr
+
+let private evalSeed opt seed =
+  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
+  let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig false
+  if newEdgeN > 0 then printFoundSeed opt.Verbosity seed newEdgeN
+  let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
+  if isNewPath && not isAbnormal then
+    let priority = if newEdgeN > 0 then Favored else Normal
+    Some priority
+  else None
+
 let private initializeSeeds opt =
   if opt.InputDir = "" then [Seed.make opt.FuzzSource]
   else System.IO.Directory.EnumerateFiles opt.InputDir // Obtain file list
@@ -27,9 +44,12 @@ let private preprocess opt seeds =
   log "[*] %d initial items with low priority" normalCount
   items
 
-let private makeNewItems seeds =
-  let expand (pr, seed) = List.map (fun s -> (pr, s)) (Seed.relocateCursor seed)
-  List.collect expand seeds
+let private makeNewItems opt seeds =
+  let collector seed =
+    match evalSeed opt seed with
+    | None -> []
+    | Some pr -> List.map (fun s -> (pr, s)) (Seed.relocateCursor seed)
+  List.collect collector seeds
 
 let private makeSteppedItems pr seed =
   match Seed.proceedCursor seed with
@@ -41,14 +61,14 @@ let rec private fuzzLoop opt seedQueue =
     Thread.Sleep(5000)
     fuzzLoop opt seedQueue
   else
-    let pr, seed, seedQueue = SeedQueue.dequeue seedQueue
+    let priority, seed, seedQueue = SeedQueue.dequeue seedQueue
     if opt.Verbosity >= 1 then
-      log "Grey-box concolic on %A seed : %s" pr (Seed.toString seed)
+      log "Grey-box concolic on %A seed : %s" priority (Seed.toString seed)
     let newSeeds = GreyConcolic.run seed opt
     // Move cursors of newly generated seeds.
-    let newItems = makeNewItems newSeeds
+    let newItems = makeNewItems opt newSeeds
     // Also generate seeds by just stepping the cursor of original seed.
-    let steppedItems = makeSteppedItems pr seed
+    let steppedItems = makeSteppedItems priority seed
     let seedQueue = List.fold SeedQueue.enqueue seedQueue newItems
     let seedQueue = List.fold SeedQueue.enqueue seedQueue steppedItems
     // Perform random fuzzing

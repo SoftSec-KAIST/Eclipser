@@ -4,16 +4,6 @@ open Utils
 
 type CompareType = Equality | SignedSize | UnsignedSize
 
-type BranchInfo = {
-  InstAddr : uint64
-  BrType   : CompareType
-  TryVal   : bigint
-  OpSize   : int
-  Oprnd1   : uint64
-  Oprnd2   : uint64
-  Distance : bigint
-}
-
 type BranchPoint = {
   Addr : uint64
   Idx  : int
@@ -22,6 +12,16 @@ type BranchPoint = {
 type Context = {
   Bytes : byte array
   ByteDir : Direction
+}
+
+type BranchInfo = {
+  InstAddr : uint64
+  BrType   : CompareType
+  TryVal   : bigint
+  OpSize   : int
+  Oprnd1   : uint64
+  Oprnd2   : uint64
+  Distance : bigint
 }
 
 module BranchInfo =

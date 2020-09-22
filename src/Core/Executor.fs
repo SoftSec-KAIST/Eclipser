@@ -242,17 +242,6 @@ let private runBranchTracerForked opt (stdin: byte array) =
 
 (*** Top-level tracer executor functions ***)
 
-let getEdgeHash opt seed =
-  set_env("CK_MODE", string (int CoverageTracerMode.EdgeHash))
-  setupFile seed
-  let stdin = prepareStdIn seed
-  if forkServerEnabled then runCoverageTracerForked opt stdin
-  else runTracer Coverage opt stdin
-  |> ignore
-  let edgeHash = parseExecHash coverageLog
-  clearFile seed
-  edgeHash
-
 let getCoverage opt seed =
   set_env("CK_MODE", string (int CoverageTracerMode.CountNewEdge))
   setupFile seed
@@ -263,17 +252,6 @@ let getCoverage opt seed =
   let newEdgeCnt, pathHash, edgeHash = parseCoverage coverageLog
   clearFile seed
   (newEdgeCnt, pathHash, edgeHash, exitSig)
-
-let getEdgeSet opt seed =
-  set_env("CK_MODE", string (int CoverageTracerMode.EdgeSet))
-  setupFile seed
-  let stdin = prepareStdIn seed
-  if forkServerEnabled then runCoverageTracerForked opt stdin
-  else runTracer Coverage opt stdin
-  |> ignore
-  let edgeSet = readEdgeSet opt coverageLog
-  clearFile seed
-  edgeSet
 
 let getBranchTrace opt seed tryVal =
   set_env("CK_FEED_ADDR", "0")

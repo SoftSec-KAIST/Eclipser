@@ -10,12 +10,12 @@ module BranchTrace =
   let collectAux opt (accTraces, accNewPathSeeds, accPaths) seed v =
     let pathHash, branchTrace = Executor.getBranchTrace opt seed v
     let accTraces = branchTrace :: accTraces
-    let accCandidates =
+    let accNewPathSeeds =
       if Manager.isNewPath pathHash && not (Set.contains pathHash accPaths)
       then seed :: accNewPathSeeds
       else accNewPathSeeds
     let accPaths = Set.add pathHash accPaths
-    (accTraces, accCandidates, accPaths)
+    (accTraces, accNewPathSeeds, accPaths)
 
   let collect seed opt minVal maxVal =
     let nSpawn = opt.NSpawn

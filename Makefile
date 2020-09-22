@@ -41,7 +41,7 @@ $(QEMUDIR)/.compiled_x64: $(SHDIR)/.compiled $(QEMUDIR)/.prepared
 	cd $(QEMUDIR) && ./build_qemu_x64.sh
 	@touch $@
 
-$(BUILDDIR)/libexec.dll: src/Executor/libexec.c
+$(BUILDDIR)/libexec.dll: src/Core/libexec.c
 	gcc -O3 -shared -fPIC $< -o $@
 
 Eclipser: $(BUILDDIR)/libexec.dll

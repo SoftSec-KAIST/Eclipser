@@ -10,9 +10,9 @@ let mutable testcaseDir = ""
 let mutable crashDir = ""
 
 let initialize outDir =
-  testcaseDir <- System.IO.Path.Combine(outDir, "testcase")
+  testcaseDir <- System.IO.Path.Combine(outDir, "queue")
   System.IO.Directory.CreateDirectory(testcaseDir) |> ignore
-  crashDir <- System.IO.Path.Combine(outDir, "crash")
+  crashDir <- System.IO.Path.Combine(outDir, "crashes")
   System.IO.Directory.CreateDirectory(crashDir) |> ignore
 
 (*** Statistics ***)
@@ -35,8 +35,7 @@ let isNewPath pathHash =
 
 let private addPathHash pathHash =
   // The case of pathHash = 0UL means abortion due to threshold or other errors.
-  let isNewPath = pathHash <> 0UL && pathHashes.Add pathHash
-  isNewPath
+  pathHash <> 0UL && pathHashes.Add pathHash
 
 let private addCrashHash crashEdgeHash =
   crashEdgeHash <> 0UL && crashEdgeHashes.Add crashEdgeHash
@@ -57,7 +56,7 @@ let printStatistics () =
   log "  Floating point error : %d" fpErrorCount
   log "  Program abortion : %d" abortCount
 
-let private updateCrashCount seed exitSig =
+let private updateCrashCount exitSig =
   match exitSig with
   | Signal.SIGSEGV -> segfaultCount <- segfaultCount + 1
   | Signal.SIGILL -> illegalInstrCount <- illegalInstrCount + 1
@@ -66,7 +65,7 @@ let private updateCrashCount seed exitSig =
   | _ -> failwith "updateCrashCount() called with a non-crashing exit signal"
   crashCount <- crashCount + 1
 
-let private updateTestcaseCount seed =
+let private updateTestcaseCount () =
   testCaseCount <- testCaseCount + 1
 
 (*** Test case storing functions ***)
@@ -76,13 +75,13 @@ let private dumpCrash opt seed exitSig =
   let crashName = sprintf "crash-%05d" crashCount
   let crashPath = System.IO.Path.Combine(crashDir, crashName)
   System.IO.File.WriteAllBytes(crashPath, Seed.concretize seed)
-  updateCrashCount seed exitSig
+  updateCrashCount exitSig
 
 let private dumpTestCase seed =
   let tcName = sprintf "tc-%05d" testCaseCount
   let tcPath = System.IO.Path.Combine(testcaseDir, tcName)
   System.IO.File.WriteAllBytes(tcPath, Seed.concretize seed)
-  updateTestcaseCount seed
+  updateTestcaseCount ()
 
 let private checkCrash opt exitSig seed edgeHash =
   if Signal.isCrash exitSig && addCrashHash edgeHash
