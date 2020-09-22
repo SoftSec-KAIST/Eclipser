@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/cpu-exec.c.orig	2017-09-17 01:29:39.966426739 +0900
-+++ qemu-2.3.0-feedback/cpu-exec.c	2017-09-17 01:28:53.506606640 +0900
+--- qemu-2.3.0-branch/cpu-exec.c.orig	2017-09-17 01:29:39.966426739 +0900
++++ qemu-2.3.0-branch/cpu-exec.c	2017-09-17 01:28:53.506606640 +0900
 @@ -28,6 +28,14 @@
  #include "exec/memory-internal.h"
  #include "qemu/rcu.h"
@@ -40,8 +40,8 @@
 +                if(tb->pc == chatkey_entry_point) {
 +                  /* XXX. If the following line is moved into chatkey_setup(), a
 +                   * weired bug occurs when fork server is enabled. In the first
-+                   * execution, execution feedbacks are correcly collected. But
-+                   * in the subsequent executions, chatkey_log_feedback() is not
++                   * execution, execution branchs are correcly collected. But
++                   * in the subsequent executions, chatkey_log_branch() is not
 +                   * called at all.
 +                   */
 +                  chatkey_EP_passed = true;

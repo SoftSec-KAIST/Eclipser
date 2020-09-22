@@ -23,7 +23,6 @@
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
-extern int chatkey_mode;
 extern abi_ulong mmap_next_start;
 
 /* Set in the child process in forkserver mode: */
@@ -79,7 +78,7 @@ static void afl_forkserver(CPUArchState *env) {
 
     /* Whoops, parent dead? */
 
-    if (read(FORKSRV_FD, &chatkey_mode, 4) != 4) exit(2);
+    if (read(FORKSRV_FD, &tmp, 4) != 4) exit(2);
 
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */

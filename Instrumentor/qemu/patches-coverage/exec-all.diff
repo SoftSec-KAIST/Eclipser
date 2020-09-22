@@ -1,5 +1,5 @@
---- qemu-2.3.0-pathcov/include/exec/exec-all.h.orig	2017-10-07 02:08:36.745270225 +0900
-+++ qemu-2.3.0-pathcov/include/exec/exec-all.h	2017-10-07 00:34:56.355819708 +0900
+--- qemu-2.3.0-coverage/include/exec/exec-all.h.orig	2017-10-07 02:08:36.745270225 +0900
++++ qemu-2.3.0-coverage/include/exec/exec-all.h	2017-10-07 00:34:56.355819708 +0900
 @@ -173,6 +173,9 @@
         jmp_first */
      struct TranslationBlock *jmp_next[2];

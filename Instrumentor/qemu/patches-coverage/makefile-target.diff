@@ -1,5 +1,5 @@
---- qemu-2.3.0-pathcov/Makefile.target	2015-04-27 23:08:23.000000000 +0900
-+++ qemu-2.3.0-pathcov-new/Makefile.target	2016-07-12 15:54:44.666065500 +0900
+--- qemu-2.3.0-coverage/Makefile.target	2015-04-27 23:08:23.000000000 +0900
++++ qemu-2.3.0-coverage-new/Makefile.target	2016-07-12 15:54:44.666065500 +0900
 @@ -11,7 +11,7 @@
  endif
  QEMU_CFLAGS += -I.. -I$(SRC_PATH)/target-$(TARGET_BASE_ARCH) -DNEED_CPU_H

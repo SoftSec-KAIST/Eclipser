@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/tcg/tcg.h.orig	2017-08-18 10:12:58.561955139 +0900
-+++ qemu-2.3.0-feedback/tcg/tcg.h	2017-08-18 10:12:44.066164190 +0900
+--- qemu-2.3.0-branch/tcg/tcg.h.orig	2017-08-18 10:12:58.561955139 +0900
++++ qemu-2.3.0-branch/tcg/tcg.h	2017-08-18 10:12:44.066164190 +0900
 @@ -29,6 +29,15 @@
  #include "qemu/bitops.h"
  #include "tcg-target.h"

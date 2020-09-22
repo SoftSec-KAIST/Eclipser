@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/tcg/tcg-opc.h.orig	2017-04-13 20:44:12.868483773 +0900
-+++ qemu-2.3.0-feedback/tcg/tcg-opc.h	2017-04-10 16:46:23.372441850 +0900
+--- qemu-2.3.0-branch/tcg/tcg-opc.h.orig	2017-04-13 20:44:12.868483773 +0900
++++ qemu-2.3.0-branch/tcg/tcg-opc.h	2017-04-10 16:46:23.372441850 +0900
 @@ -57,7 +57,7 @@
  DEF(st_i32, 0, 2, 1, 0)
  /* arith */

@@ -1,5 +1,5 @@
---- qemu-2.3.0-pathcov/linux-user/syscall.c.orig	2017-07-20 14:40:31.912793680 +0900
-+++ qemu-2.3.0-pathcov/linux-user/syscall.c	2017-07-20 14:25:16.001550285 +0900
+--- qemu-2.3.0-coverage/linux-user/syscall.c.orig	2017-07-20 14:40:31.912793680 +0900
++++ qemu-2.3.0-coverage/linux-user/syscall.c	2017-07-20 14:25:16.001550285 +0900
 @@ -115,6 +115,33 @@
  
  #include "qemu.h"

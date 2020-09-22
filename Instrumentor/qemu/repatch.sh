@@ -33,39 +33,31 @@ export_common_patch() {
   cp qemu-2.3.0/include/sysemu/os-posix.h ./$TARG_DIR/include/sysemu/
 }
 
-export_pathcov_patch() {
-  TARG_DIR=./qemu-2.3.0-pathcov-$1
-  cp qemu-2.3.0-pathcov/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
-  cp qemu-2.3.0-pathcov/cpu-exec.c $TARG_DIR/cpu-exec.c
-  cp qemu-2.3.0-pathcov/target-i386/translate.c $TARG_DIR/target-i386/translate.c
-  cp qemu-2.3.0-pathcov/include/exec/exec-all.h ./$TARG_DIR/include/exec/exec-all.h
-  cp qemu-2.3.0-pathcov/Makefile.target $TARG_DIR/Makefile.target
-  cp qemu-2.3.0-pathcov/chatkey.cc $TARG_DIR/
-  cp qemu-2.3.0-pathcov/afl-qemu-cpu-inl.h $TARG_DIR/
-  cp qemu-2.3.0-pathcov/chatkey-utils.h $TARG_DIR/
+export_coverage_patch() {
+  TARG_DIR=./qemu-2.3.0-coverage-$1
+  cp qemu-2.3.0-coverage/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
+  cp qemu-2.3.0-coverage/cpu-exec.c $TARG_DIR/cpu-exec.c
+  cp qemu-2.3.0-coverage/target-i386/translate.c $TARG_DIR/target-i386/translate.c
+  cp qemu-2.3.0-coverage/include/exec/exec-all.h ./$TARG_DIR/include/exec/exec-all.h
+  cp qemu-2.3.0-coverage/Makefile.target $TARG_DIR/Makefile.target
+  cp qemu-2.3.0-coverage/chatkey.cc $TARG_DIR/
+  cp qemu-2.3.0-coverage/afl-qemu-cpu-inl.h $TARG_DIR/
+  cp qemu-2.3.0-coverage/chatkey-utils.h $TARG_DIR/
 }
 
-export_syscall_patch() {
-  TARG_DIR=./qemu-2.3.0-syscall-$1
-  cp qemu-2.3.0-syscall/cpu-exec.c $TARG_DIR/cpu-exec.c
-  cp qemu-2.3.0-syscall/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
-  cp qemu-2.3.0-syscall/linux-user/Makefile.objs $TARG_DIR/linux-user/Makefile.objs
-  cp qemu-2.3.0-syscall/linux-user/chatkey.c $TARG_DIR/linux-user/
-}
-
-export_feedback_patch() {
-  TARG_DIR=./qemu-2.3.0-feedback-$1
-  cp qemu-2.3.0-feedback/cpu-exec.c $TARG_DIR/cpu-exec.c
-  cp qemu-2.3.0-feedback/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
-  cp qemu-2.3.0-feedback/Makefile.target $TARG_DIR/Makefile.target
-  cp qemu-2.3.0-feedback/target-i386/translate.c $TARG_DIR/target-i386/translate.c
-  cp qemu-2.3.0-feedback/tcg/i386/tcg-target.c $TARG_DIR/tcg/i386/tcg-target.c
-  cp qemu-2.3.0-feedback/tcg/tcg-op.h $TARG_DIR/tcg/tcg-op.h
-  cp qemu-2.3.0-feedback/tcg/tcg-opc.h $TARG_DIR/tcg/tcg-opc.h
-  cp qemu-2.3.0-feedback/tcg/tcg.h $TARG_DIR/tcg/tcg.h
-  cp qemu-2.3.0-feedback/tcg/optimize.c $TARG_DIR/tcg/optimize.c
-  cp qemu-2.3.0-feedback/tcg/chatkey.c $TARG_DIR/tcg/
-  cp qemu-2.3.0-feedback/afl-qemu-cpu-inl.h $TARG_DIR/
+export_branch_patch() {
+  TARG_DIR=./qemu-2.3.0-branch-$1
+  cp qemu-2.3.0-branch/cpu-exec.c $TARG_DIR/cpu-exec.c
+  cp qemu-2.3.0-branch/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
+  cp qemu-2.3.0-branch/Makefile.target $TARG_DIR/Makefile.target
+  cp qemu-2.3.0-branch/target-i386/translate.c $TARG_DIR/target-i386/translate.c
+  cp qemu-2.3.0-branch/tcg/i386/tcg-target.c $TARG_DIR/tcg/i386/tcg-target.c
+  cp qemu-2.3.0-branch/tcg/tcg-op.h $TARG_DIR/tcg/tcg-op.h
+  cp qemu-2.3.0-branch/tcg/tcg-opc.h $TARG_DIR/tcg/tcg-opc.h
+  cp qemu-2.3.0-branch/tcg/tcg.h $TARG_DIR/tcg/tcg.h
+  cp qemu-2.3.0-branch/tcg/optimize.c $TARG_DIR/tcg/optimize.c
+  cp qemu-2.3.0-branch/tcg/chatkey.c $TARG_DIR/tcg/
+  cp qemu-2.3.0-branch/afl-qemu-cpu-inl.h $TARG_DIR/
 }
 
 export_bbcount_patch() {
@@ -101,99 +93,75 @@ patch -p0 <patches-common/os-posix.diff || exit 1
 patch -p0 <patches-common/configure.diff || exit 1
 
 # Export
-export_common_patch "pathcov" "x86"
-export_common_patch "pathcov" "x64"
-export_common_patch "syscall" "x86"
-export_common_patch "syscall" "x64"
-export_common_patch "feedback" "x86"
-export_common_patch "feedback" "x64"
+export_common_patch "coverage" "x86"
+export_common_patch "coverage" "x64"
+export_common_patch "branch" "x86"
+export_common_patch "branch" "x64"
 export_common_patch "bbcount" "x86"
 export_common_patch "bbcount" "x64"
 
 ##### Patch path coverage tracer
 
-# Copy qemu-2.3.0 into qemu-2.3.0-pathcov, to apply patch.
-cp -r "qemu-2.3.0" "qemu-2.3.0-pathcov"
+# Copy qemu-2.3.0 into qemu-2.3.0-coverage, to apply patch.
+cp -r "qemu-2.3.0" "qemu-2.3.0-coverage"
 
 # Recover
-cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-pathcov/linux-user/syscall.c
-cp qemu-2.3.0/cpu-exec.c qemu-2.3.0-pathcov/cpu-exec.c
-cp qemu-2.3.0/target-i386/translate.c qemu-2.3.0-pathcov/target-i386/translate.c
-cp qemu-2.3.0/include/exec/exec-all.h ./qemu-2.3.0-pathcov/include/exec/exec-all.h
-cp qemu-2.3.0/Makefile.target qemu-2.3.0-pathcov/Makefile.target
+cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-coverage/linux-user/syscall.c
+cp qemu-2.3.0/cpu-exec.c qemu-2.3.0-coverage/cpu-exec.c
+cp qemu-2.3.0/target-i386/translate.c qemu-2.3.0-coverage/target-i386/translate.c
+cp qemu-2.3.0/include/exec/exec-all.h ./qemu-2.3.0-coverage/include/exec/exec-all.h
+cp qemu-2.3.0/Makefile.target qemu-2.3.0-coverage/Makefile.target
 
 # Patch
-patch -p0 <patches-pathcov/syscall.diff || exit 1
-patch -p0 <patches-pathcov/cpu-exec.diff || exit 1
-patch -p0 <patches-pathcov/exec-all.diff || exit 1
-patch -p0 <patches-pathcov/translate.diff || exit 1
-patch -p0 <patches-pathcov/makefile-target.diff || exit 1
-cp patches-pathcov/chatkey.cc qemu-2.3.0-pathcov/
-cp patches-pathcov/afl-qemu-cpu-inl.h qemu-2.3.0-pathcov/
-cp patches-pathcov/chatkey-utils.h qemu-2.3.0-pathcov/
+patch -p0 <patches-coverage/syscall.diff || exit 1
+patch -p0 <patches-coverage/cpu-exec.diff || exit 1
+patch -p0 <patches-coverage/exec-all.diff || exit 1
+patch -p0 <patches-coverage/translate.diff || exit 1
+patch -p0 <patches-coverage/makefile-target.diff || exit 1
+cp patches-coverage/chatkey.cc qemu-2.3.0-coverage/
+cp patches-coverage/afl-qemu-cpu-inl.h qemu-2.3.0-coverage/
+cp patches-coverage/chatkey-utils.h qemu-2.3.0-coverage/
 
-export_pathcov_patch "x86"
-export_pathcov_patch "x64"
+export_coverage_patch "x86"
+export_coverage_patch "x64"
 
 # Cleanup
-rm -rf "qemu-2.3.0-pathcov"
+rm -rf "qemu-2.3.0-coverage"
 
-##### Patch syscall tracer
+##### Patch branch tracer
 
-# Copy qemu-2.3.0 into qemu-2.3.0-syscall, to apply patch.
-cp -r "qemu-2.3.0" "qemu-2.3.0-syscall"
+# Copy qemu-2.3.0 into qemu-2.3.0-branch, to apply patch.
+cp -r "qemu-2.3.0" "qemu-2.3.0-branch"
 
 # Recover
-cp qemu-2.3.0/cpu-exec.c qemu-2.3.0-syscall/cpu-exec.c
-cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-syscall/linux-user/syscall.c
-cp qemu-2.3.0/linux-user/Makefile.objs qemu-2.3.0-syscall/linux-user/Makefile.objs
+cp qemu-2.3.0/cpu-exec.c qemu-2.3.0-branch/cpu-exec.c
+cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-branch/linux-user/syscall.c
+cp qemu-2.3.0/Makefile.target qemu-2.3.0-branch/Makefile.target
+cp qemu-2.3.0/target-i386/translate.c qemu-2.3.0-branch/target-i386/translate.c
+cp qemu-2.3.0/tcg/i386/tcg-target.c qemu-2.3.0-branch/tcg/i386/tcg-target.c
+cp qemu-2.3.0/tcg/tcg-op.h qemu-2.3.0-branch/tcg/tcg-op.h
+cp qemu-2.3.0/tcg/tcg-opc.h qemu-2.3.0-branch/tcg/tcg-opc.h
+cp qemu-2.3.0/tcg/tcg.h qemu-2.3.0-branch/tcg/tcg.h
+cp qemu-2.3.0/tcg/optimize.c qemu-2.3.0-branch/tcg/optimize.c
 
 # Patch
-patch -p0 <patches-syscall/cpu-exec.diff || exit 1
-patch -p0 <patches-syscall/syscall.diff || exit 1
-patch -p0 <patches-syscall/makefile-objs.diff || exit 1
-cp patches-syscall/chatkey.c qemu-2.3.0-syscall/linux-user/
+patch -p0 <patches-branch/cpu-exec.diff || exit 1
+patch -p0 <patches-branch/syscall.diff || exit 1
+patch -p0 <patches-branch/makefile-target.diff || exit 1
+patch -p0 <patches-branch/translate.diff || exit 1
+patch -p0 <patches-branch/tcg-target.diff || exit 1
+patch -p0 <patches-branch/tcg-op.diff || exit 1
+patch -p0 <patches-branch/tcg-opc.diff || exit 1
+patch -p0 <patches-branch/tcg.diff || exit 1
+patch -p0 <patches-branch/optimize.diff || exit 1
+cp patches-branch/chatkey.c qemu-2.3.0-branch/tcg/
+cp patches-branch/afl-qemu-cpu-inl.h qemu-2.3.0-branch/
 
-export_syscall_patch "x86"
-export_syscall_patch "x64"
-
-# Cleanup
-rm -rf "qemu-2.3.0-syscall"
-
-##### Patch feedback tracer
-
-# Copy qemu-2.3.0 into qemu-2.3.0-feedback, to apply patch.
-cp -r "qemu-2.3.0" "qemu-2.3.0-feedback"
-
-# Recover
-cp qemu-2.3.0/cpu-exec.c qemu-2.3.0-feedback/cpu-exec.c
-cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-feedback/linux-user/syscall.c
-cp qemu-2.3.0/Makefile.target qemu-2.3.0-feedback/Makefile.target
-cp qemu-2.3.0/target-i386/translate.c qemu-2.3.0-feedback/target-i386/translate.c
-cp qemu-2.3.0/tcg/i386/tcg-target.c qemu-2.3.0-feedback/tcg/i386/tcg-target.c
-cp qemu-2.3.0/tcg/tcg-op.h qemu-2.3.0-feedback/tcg/tcg-op.h
-cp qemu-2.3.0/tcg/tcg-opc.h qemu-2.3.0-feedback/tcg/tcg-opc.h
-cp qemu-2.3.0/tcg/tcg.h qemu-2.3.0-feedback/tcg/tcg.h
-cp qemu-2.3.0/tcg/optimize.c qemu-2.3.0-feedback/tcg/optimize.c
-
-# Patch
-patch -p0 <patches-feedback/cpu-exec.diff || exit 1
-patch -p0 <patches-feedback/syscall.diff || exit 1
-patch -p0 <patches-feedback/makefile-target.diff || exit 1
-patch -p0 <patches-feedback/translate.diff || exit 1
-patch -p0 <patches-feedback/tcg-target.diff || exit 1
-patch -p0 <patches-feedback/tcg-op.diff || exit 1
-patch -p0 <patches-feedback/tcg-opc.diff || exit 1
-patch -p0 <patches-feedback/tcg.diff || exit 1
-patch -p0 <patches-feedback/optimize.diff || exit 1
-cp patches-feedback/chatkey.c qemu-2.3.0-feedback/tcg/
-cp patches-feedback/afl-qemu-cpu-inl.h qemu-2.3.0-feedback/
-
-export_feedback_patch "x86"
-export_feedback_patch "x64"
+export_branch_patch "x86"
+export_branch_patch "x64"
 
 # Cleanup
-rm -rf "qemu-2.3.0-feedback"
+rm -rf "qemu-2.3.0-branch"
 
 #### Patch the basic block count tracer
 

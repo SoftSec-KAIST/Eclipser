@@ -1,5 +1,5 @@
---- qemu-2.3.0-pathcov/target-i386/translate.c.orig	2017-10-07 02:23:34.787285527 +0900
-+++ qemu-2.3.0-pathcov/target-i386/translate.c	2017-10-07 02:15:08.076137509 +0900
+--- qemu-2.3.0-coverage/target-i386/translate.c.orig	2017-10-07 02:23:34.787285527 +0900
++++ qemu-2.3.0-coverage/target-i386/translate.c	2017-10-07 02:15:08.076137509 +0900
 @@ -391,7 +391,7 @@
      tcg_gen_addi_tl(cpu_A0, cpu_A0, val);
  }

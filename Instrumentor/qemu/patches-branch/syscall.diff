@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/linux-user/syscall.c.orig	2017-07-20 14:41:00.160771159 +0900
-+++ qemu-2.3.0-feedback/linux-user/syscall.c	2017-07-20 14:34:26.127522059 +0900
+--- qemu-2.3.0-branch/linux-user/syscall.c.orig	2017-07-20 14:41:00.160771159 +0900
++++ qemu-2.3.0-branch/linux-user/syscall.c	2017-07-20 14:34:26.127522059 +0900
 @@ -115,6 +115,33 @@
  
  #include "qemu.h"

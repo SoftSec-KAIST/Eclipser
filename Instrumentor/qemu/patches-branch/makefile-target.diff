@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/Makefile.target.orig	2017-04-13 20:44:12.868483773 +0900
-+++ qemu-2.3.0-feedback/Makefile.target	2017-04-10 16:46:23.364441824 +0900
+--- qemu-2.3.0-branch/Makefile.target.orig	2017-04-13 20:44:12.868483773 +0900
++++ qemu-2.3.0-branch/Makefile.target	2017-04-10 16:46:23.364441824 +0900
 @@ -83,7 +83,7 @@
  #########################################################
  # cpu emulator library

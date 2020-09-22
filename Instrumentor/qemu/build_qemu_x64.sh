@@ -40,17 +40,13 @@ build_qemu () {
 
 ### Build QEMU tracers
 
-build_qemu pathcov
-mv "./qemu-trace" "../../build/qemu-trace-pathcov-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-pathcov-x64'."
+build_qemu coverage
+mv "./qemu-trace" "../../build/qemu-trace-coverage-x64" || exit 1
+echo "[+] Successfully created 'qemu-trace-coverage-x64'."
 
-build_qemu syscall
-mv "./qemu-trace" "../../build/qemu-trace-syscall-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-syscall-x64'."
-
-build_qemu feedback
-mv "./qemu-trace" "../../build/qemu-trace-feedback-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-feedback-x64'."
+build_qemu branch
+mv "./qemu-trace" "../../build/qemu-trace-branch-x64" || exit 1
+echo "[+] Successfully created 'qemu-trace-branch-x64'."
 
 build_qemu bbcount
 mv "./qemu-trace" "../../build/qemu-trace-bbcount-x64" || exit 1

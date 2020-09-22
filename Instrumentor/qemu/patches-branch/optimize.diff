@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/tcg/optimize.c.orig	2017-08-22 16:45:31.562156045 +0900
-+++ qemu-2.3.0-feedback/tcg/optimize.c	2017-08-22 16:16:49.397284593 +0900
+--- qemu-2.3.0-branch/tcg/optimize.c.orig	2017-08-22 16:45:31.562156045 +0900
++++ qemu-2.3.0-branch/tcg/optimize.c	2017-08-22 16:16:49.397284593 +0900
 @@ -258,8 +258,8 @@
      CASE_OP_32_64(add):
          return x + y;

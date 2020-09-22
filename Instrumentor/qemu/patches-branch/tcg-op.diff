@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/tcg/tcg-op.h.orig	2017-08-18 10:10:04.060465652 +0900
-+++ qemu-2.3.0-feedback/tcg/tcg-op.h	2017-08-18 10:08:03.058197082 +0900
+--- qemu-2.3.0-branch/tcg/tcg-op.h.orig	2017-08-18 10:10:04.060465652 +0900
++++ qemu-2.3.0-branch/tcg/tcg-op.h	2017-08-18 10:08:03.058197082 +0900
 @@ -381,14 +381,42 @@
      tcg_gen_op3_i32(INDEX_op_add_i32, ret, arg1, arg2);
  }

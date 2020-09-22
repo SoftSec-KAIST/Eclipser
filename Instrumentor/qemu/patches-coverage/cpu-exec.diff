@@ -1,6 +1,6 @@
---- qemu-2.3.0-pathcov/cpu-exec.c.orig	2019-02-04 15:58:26.783108755 +0900
-+++ qemu-2.3.0-pathcov/cpu-exec.c	2019-02-04 16:01:19.912952716 +0900
-@@ -28,6 +28,14 @@
+--- qemu-2.3.0-coverage/cpu-exec.c.orig	2020-09-21 23:23:17.517246984 -0700
++++ qemu-2.3.0-coverage/cpu-exec.c	2020-09-21 23:22:27.909433624 -0700
+@@ -28,6 +28,13 @@
  #include "exec/memory-internal.h"
  #include "qemu/rcu.h"
  
@@ -10,23 +10,11 @@
 +extern void chatkey_log_bb(abi_ulong addr, abi_ulong callsite);
 +
 +#include "afl-qemu-cpu-inl.h"
-+#include "chatkey-utils.h"
 +
  /* -icount align implementation. */
  
  typedef struct SyncClocks {
-@@ -36,6 +44,10 @@
-     int64_t realtime_clock;
- } SyncClocks;
- 
-+/* Chatkey */
-+int is_function_entry = 0;
-+abi_ulong current_function = 0;
-+
- #if !defined(CONFIG_USER_ONLY)
- /* Allow the guest to have a max 3ms advance.
-  * The difference between the 2 clocks could therefore
-@@ -296,8 +308,11 @@
+@@ -296,8 +303,11 @@
      }
   not_found:
     /* if no translated code available, then translate it now */
@@ -38,7 +26,7 @@
   found:
      /* Move the last found TB to the head of the list */
      if (likely(*ptb1)) {
-@@ -492,6 +507,15 @@
+@@ -492,6 +502,15 @@
                      next_tb = 0;
                      tcg_ctx.tb_ctx.tb_invalidated_flag = 0;
                  }

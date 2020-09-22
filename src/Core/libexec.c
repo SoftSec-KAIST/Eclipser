@@ -398,12 +398,12 @@ void kill_forkserver() {
 int exec_fork_coverage(uint64_t timeout, int stdin_size, char *stdin_data) {
     int res, childstatus;
     static struct itimerval it;
+    static unsigned char tmp[4];
 
-    int run_mode = atoi(getenv("CK_MODE"));
-
+    /* TODO : what if we want to use pseudo-terminal? */
     write_stdin(path_stdin_fd, stdin_size, stdin_data);
 
-    if ((res = write(path_fsrv_ctl_fd, &run_mode, 4)) != 4) {
+    if ((res = write(path_fsrv_ctl_fd, tmp, 4)) != 4) {
       perror("exec_fork_coverage: Cannot request new process to fork server");
       printf("write() call ret = %d\n", res);
       return -1;
@@ -455,11 +455,11 @@ int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data) {
     int res, childstatus;
     static struct itimerval it;
 
-    targ_addr = strtol(getenv("CK_FEED_ADDR"), NULL, 16);
-    targ_index = strtol(getenv("CK_FEED_IDX"), NULL, 16);
     /* TODO : what if we want to use pseudo-terminal? */
     write_stdin(feed_stdin_fd, stdin_size, stdin_data);
 
+    targ_addr = strtol(getenv("CK_FEED_ADDR"), NULL, 16);
+    targ_index = strtol(getenv("CK_FEED_IDX"), NULL, 16);
     if ((res = write(feed_fsrv_ctl_fd, &targ_addr, 8)) != 8) {
       perror("exec_fork_branch: Cannot request new process to fork server (1)");
       printf("write() call ret = %d\n", res);

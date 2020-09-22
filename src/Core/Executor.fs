@@ -21,15 +21,6 @@ type TimeoutHandling =
   /// Attach to the process with GDB and quit()
   | GDBQuit = 1
 
-/// Mode of coverage tracer execution.
-type CoverageTracerMode =
-  /// Count the number of new edges (also obtains a path hash as a by-product)
-  | CountNewEdge = 0
-  /// Calculate the hash of edge set visitied in this execution
-  | EdgeHash = 1
-  /// Find the edge set visited in this execution
-  | EdgeSet = 2
-
 [<DllImport("libexec.dll")>] extern void set_env (string env_variable, string env_value)
 [<DllImport("libexec.dll")>] extern void initialize_exec (TimeoutHandling is_replay)
 [<DllImport("libexec.dll")>] extern int init_forkserver_coverage (int argc, string[] argv, uint64 timeout)
@@ -46,10 +37,10 @@ type CoverageTracerMode =
 let buildDir =
   let exePath = System.Reflection.Assembly.GetEntryAssembly().Location
   System.IO.Path.GetDirectoryName(exePath)
-let coverageTracerX86 = sprintf "%s/qemu-trace-pathcov-x86" buildDir
-let coverageTracerX64 = sprintf "%s/qemu-trace-pathcov-x64" buildDir
-let branchTracerX86 = sprintf "%s/qemu-trace-feedback-x86" buildDir
-let branchTracerX64 = sprintf "%s/qemu-trace-feedback-x64" buildDir
+let coverageTracerX86 = sprintf "%s/qemu-trace-coverage-x86" buildDir
+let coverageTracerX64 = sprintf "%s/qemu-trace-coverage-x64" buildDir
+let branchTracerX86 = sprintf "%s/qemu-trace-branch-x86" buildDir
+let branchTracerX64 = sprintf "%s/qemu-trace-branch-x64" buildDir
 let bbCountTracerX86 = sprintf "%s/qemu-trace-bbcount-x86" buildDir
 let bbCountTracerX64 = sprintf "%s/qemu-trace-bbcount-x64" buildDir
 
@@ -82,7 +73,6 @@ let initialize opt =
   if verbosity >= 2 then
     set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
   // Set other environment variables in advance, to avoid affecting path hash.
-  set_env("CK_MODE", "0")
   set_env("CK_FEED_ADDR", "0")
   set_env("CK_FEED_IDX", "0")
   set_env("CK_CTX_SENSITIVITY", string CtxSensitivity)
@@ -243,7 +233,6 @@ let private runBranchTracerForked opt (stdin: byte array) =
 (*** Top-level tracer executor functions ***)
 
 let getCoverage opt seed =
-  set_env("CK_MODE", string (int CoverageTracerMode.CountNewEdge))
   setupFile seed
   let stdin = prepareStdIn seed
   let exitSig = if forkServerEnabled

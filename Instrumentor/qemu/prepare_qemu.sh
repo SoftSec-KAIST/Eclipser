@@ -33,7 +33,7 @@ if [ ! "`uname -s`" = "Linux" ]; then
 
 fi
 
-if [ ! -f "patches-pathcov/chatkey.cc" -o ! -f "patches-syscall/chatkey.c" -o ! -f "patches-feedback/chatkey.c" ]; then
+if [ ! -f "patches-coverage/chatkey.cc" -o ! -f "patches-branch/chatkey.c" ]; then
 
   echo "[-] Error: key files not found - wrong working directory?"
   exit 1
@@ -90,16 +90,13 @@ fi
 echo "[*] Uncompressing archive (this will take a while)..."
 
 rm -rf "qemu-2.3.0" || exit 1
-rm -rf "qemu-2.3.0-pathcov" || exit 1
-rm -rf "qemu-2.3.0-syscall" || exit 1
-rm -rf "qemu-2.3.0-feedback" || exit 1
+rm -rf "qemu-2.3.0-coverage" || exit 1
+rm -rf "qemu-2.3.0-branch" || exit 1
 rm -rf "qemu-2.3.0-bbcount" || exit 1
-rm -rf "qemu-2.3.0-pathcov-x86" || exit 1
-rm -rf "qemu-2.3.0-pathcov-x64" || exit 1
-rm -rf "qemu-2.3.0-syscall-x86" || exit 1
-rm -rf "qemu-2.3.0-syscall-x64" || exit 1
-rm -rf "qemu-2.3.0-feedback-x86" || exit 1
-rm -rf "qemu-2.3.0-feedback-x64" || exit 1
+rm -rf "qemu-2.3.0-coverage-x86" || exit 1
+rm -rf "qemu-2.3.0-coverage-x64" || exit 1
+rm -rf "qemu-2.3.0-branch-x86" || exit 1
+rm -rf "qemu-2.3.0-branch-x64" || exit 1
 rm -rf "qemu-2.3.0-bbcount-x86" || exit 1
 rm -rf "qemu-2.3.0-bbcount-x64" || exit 1
 tar xf "$ARCHIVE" || exit 1
@@ -126,52 +123,40 @@ patch -p0 <patches-common/user-exec.diff || exit 1
 patch -p0 <patches-common/os-posix.diff || exit 1
 patch -p0 <patches-common/configure.diff || exit 1
 
-cp -r "qemu-2.3.0" "qemu-2.3.0-pathcov"
-cp -r "qemu-2.3.0" "qemu-2.3.0-syscall"
-cp -r "qemu-2.3.0" "qemu-2.3.0-feedback"
+cp -r "qemu-2.3.0" "qemu-2.3.0-coverage"
+cp -r "qemu-2.3.0" "qemu-2.3.0-branch"
 cp -r "qemu-2.3.0" "qemu-2.3.0-bbcount"
 
-### Patch for pathcov tracer
+### Patch for coverage tracer
 
-echo "[*] Applying patches for pathcov..."
+echo "[*] Applying patches for coverage..."
 
-patch -p0 <patches-pathcov/syscall.diff || exit 1
-patch -p0 <patches-pathcov/cpu-exec.diff || exit 1
-patch -p0 <patches-pathcov/exec-all.diff || exit 1
-patch -p0 <patches-pathcov/translate.diff || exit 1
-patch -p0 <patches-pathcov/makefile-target.diff || exit 1
-cp patches-pathcov/chatkey.cc qemu-2.3.0-pathcov/
-cp patches-pathcov/afl-qemu-cpu-inl.h qemu-2.3.0-pathcov/
-cp patches-pathcov/chatkey-utils.h qemu-2.3.0-pathcov/
-
-echo "[+] Patching done."
-
-### Patch for syscall tracer
-
-echo "[*] Applying patches for syscall..."
-
-patch -p0 <patches-syscall/cpu-exec.diff || exit 1
-patch -p0 <patches-syscall/syscall.diff || exit 1
-patch -p0 <patches-syscall/makefile-objs.diff || exit 1
-cp patches-syscall/chatkey.c qemu-2.3.0-syscall/linux-user/
+patch -p0 <patches-coverage/syscall.diff || exit 1
+patch -p0 <patches-coverage/cpu-exec.diff || exit 1
+patch -p0 <patches-coverage/exec-all.diff || exit 1
+patch -p0 <patches-coverage/translate.diff || exit 1
+patch -p0 <patches-coverage/makefile-target.diff || exit 1
+cp patches-coverage/chatkey.cc qemu-2.3.0-coverage/
+cp patches-coverage/afl-qemu-cpu-inl.h qemu-2.3.0-coverage/
+cp patches-coverage/chatkey-utils.h qemu-2.3.0-coverage/
 
 echo "[+] Patching done."
 
-### Patch for feedback tracer
+### Patch for branch tracer
 
-echo "[*] Applying patches for feedback..."
+echo "[*] Applying patches for branch..."
 
-patch -p0 <patches-feedback/cpu-exec.diff || exit 1
-patch -p0 <patches-feedback/syscall.diff || exit 1
-patch -p0 <patches-feedback/makefile-target.diff || exit 1
-patch -p0 <patches-feedback/translate.diff || exit 1
-patch -p0 <patches-feedback/tcg-target.diff || exit 1
-patch -p0 <patches-feedback/tcg-op.diff || exit 1
-patch -p0 <patches-feedback/tcg-opc.diff || exit 1
-patch -p0 <patches-feedback/tcg.diff || exit 1
-patch -p0 <patches-feedback/optimize.diff || exit 1
-cp patches-feedback/chatkey.c qemu-2.3.0-feedback/tcg/
-cp patches-feedback/afl-qemu-cpu-inl.h qemu-2.3.0-feedback/
+patch -p0 <patches-branch/cpu-exec.diff || exit 1
+patch -p0 <patches-branch/syscall.diff || exit 1
+patch -p0 <patches-branch/makefile-target.diff || exit 1
+patch -p0 <patches-branch/translate.diff || exit 1
+patch -p0 <patches-branch/tcg-target.diff || exit 1
+patch -p0 <patches-branch/tcg-op.diff || exit 1
+patch -p0 <patches-branch/tcg-opc.diff || exit 1
+patch -p0 <patches-branch/tcg.diff || exit 1
+patch -p0 <patches-branch/optimize.diff || exit 1
+cp patches-branch/chatkey.c qemu-2.3.0-branch/tcg/
+cp patches-branch/afl-qemu-cpu-inl.h qemu-2.3.0-branch/
 
 echo "[+] Patching done."
 
@@ -189,11 +174,9 @@ echo "[+] Patching done."
 
 ### Copy directories, one for x86 and the other for x64
 
-cp -r "qemu-2.3.0-pathcov" "qemu-2.3.0-pathcov-x86"
-mv "qemu-2.3.0-pathcov" "qemu-2.3.0-pathcov-x64"
-cp -r "qemu-2.3.0-syscall" "qemu-2.3.0-syscall-x86"
-mv "qemu-2.3.0-syscall" "qemu-2.3.0-syscall-x64"
-cp -r "qemu-2.3.0-feedback" "qemu-2.3.0-feedback-x86"
-mv "qemu-2.3.0-feedback" "qemu-2.3.0-feedback-x64"
+cp -r "qemu-2.3.0-coverage" "qemu-2.3.0-coverage-x86"
+mv "qemu-2.3.0-coverage" "qemu-2.3.0-coverage-x64"
+cp -r "qemu-2.3.0-branch" "qemu-2.3.0-branch-x86"
+mv "qemu-2.3.0-branch" "qemu-2.3.0-branch-x64"
 cp -r "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x86"
 mv "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x64"

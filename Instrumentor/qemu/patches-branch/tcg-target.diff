@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/tcg/i386/tcg-target.c.orig	2017-10-01 21:59:22.790565093 +0900
-+++ qemu-2.3.0-feedback/tcg/i386/tcg-target.c	2017-10-01 21:57:46.366637219 +0900
+--- qemu-2.3.0-branch/tcg/i386/tcg-target.c.orig	2017-10-01 21:59:22.790565093 +0900
++++ qemu-2.3.0-branch/tcg/i386/tcg-target.c	2017-10-01 21:57:46.366637219 +0900
 @@ -24,6 +24,8 @@
  
  #include "tcg-be-ldst.h"

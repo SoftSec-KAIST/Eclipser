@@ -1,5 +1,5 @@
---- qemu-2.3.0-feedback/target-i386/translate.c.orig	2017-09-17 00:03:03.803748021 +0900
-+++ qemu-2.3.0-feedback/target-i386/translate.c	2017-09-16 23:51:44.773721311 +0900
+--- qemu-2.3.0-branch/target-i386/translate.c.orig	2017-09-17 00:03:03.803748021 +0900
++++ qemu-2.3.0-branch/target-i386/translate.c	2017-09-16 23:51:44.773721311 +0900
 @@ -60,6 +60,13 @@
  # define clztl  clz32
  #endif
