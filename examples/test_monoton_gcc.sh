@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Grey-box concolic should find test cases that have \x41\x42 and "Good!".
+# Grey-box concolic should find test cases that have \x41\x42, \x61\x62,
+# "Good!", and "Bad!".
 gcc monoton.c -o monoton.bin -static -g || exit 1
 rm -rf box
 mkdir box

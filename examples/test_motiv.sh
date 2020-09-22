@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 # Grey-box concolic should find a program-crashing test case within few seconds.
 gcc motiv.c -o motiv.bin -static -g || exit 1
