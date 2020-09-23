@@ -23,30 +23,27 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <pty.h>
-#include <sys/shm.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <stdint.h>
 
-#define PATH_FORKSRV_FD      198
-#define FEED_FORKSRV_FD      194
+#define COV_FORKSRV_FD      198
+#define BR_FORKSRV_FD      194
 #define FORK_WAIT_MULT  10
 
-static int shm_id;
-static pid_t path_forksrv_pid;
-static int path_fsrv_ctl_fd, path_fsrv_st_fd;
-static pid_t feed_forksrv_pid;
-static int feed_fsrv_ctl_fd, feed_fsrv_st_fd;
+static pid_t coverage_forksrv_pid;
+static int coverage_fsrv_ctl_fd, coverage_fsrv_st_fd;
+static pid_t branch_forksrv_pid;
+static int branch_fsrv_ctl_fd, branch_fsrv_st_fd;
 
 static pid_t child_pid = 0;
 static int pty_fd;
 static int pty_flag;
-static int replay_flag;
 static int timeout_flag;
 static int non_fork_stdin_fd;
-static int path_stdin_fd;
-static int feed_stdin_fd;
+static int coverage_stdin_fd;
+static int branch_stdin_fd;
 
 pid_t (*sym_forkpty)(int *, char *, const struct termios*, const struct winsize *);
 
@@ -76,7 +73,7 @@ void open_stdin_fd(int * fd){
      * descriptors up to *_FORKSRV_FD, which results in protocol error
      * between forkserver and its client.
      */
-    if (*fd > PATH_FORKSRV_FD - 10)
+    if (*fd > COV_FORKSRV_FD - 10)
         error_exit("open_stdin_fd : detected a leak of file descriptor");
 }
 
@@ -97,40 +94,10 @@ static void alarm_callback(int sig) {
     if (child_pid) {
         puts("Timeout");
         fflush(stdout);
-        if (replay_flag) {
-          /* If we are replaying test cases, we should use GDB to quit the
-           * executed program. Otherwise, gcov data will not be generated,
-           * and coverage cannot be obtained correctly. Codes are borrowed
-           * from klee_replay.c of KLEE project.
-           */
-          int status;
-          char pid_buf[64];
-          pid_t gdb_pid = fork();
-          if (gdb_pid < 0) {
-            puts("[Warning] Failed to fork() for GDB execution");
-            fflush(stdout);
-          } else if (gdb_pid == 0) { // child process
-            char *gdb_args[] = {
-              "/usr/bin/gdb", "--pid", pid_buf, "-q", "--batch",
-              "--eval-command=call exit(1)", NULL };
-            sprintf(pid_buf, "%d", child_pid);
-            execvp(gdb_args[0], gdb_args);
-            puts("[Warning] GDB execution failed");
-            fflush(stdout);
-          } else { // parent process, wait until GDB is executed
-            usleep(250 * 1000); // Give 250ms for GDB to work
-            /* Sometimes child process for GDB hangs, so we should send
-             * SIGKILL signal. */
-            if ( waitpid( gdb_pid, &status, WNOHANG) < 0 )
-              kill(gdb_pid, SIGKILL);
-          }
-        } else {
-          /* If we are in fuzzing mode, send SIGTERM (not SIGKILL) so that QEMU
-           * tracer can receive it and call eclipser_exit() to log feedback.
-           */
-          kill(child_pid, SIGTERM);
-        }
-
+        /* If we are in fuzzing mode, send SIGTERM (not SIGKILL) so that QEMU
+         * tracer can receive it and call eclipser_exit() to finish logging.
+         */
+        kill(child_pid, SIGTERM);
         timeout_flag = 1;
         /* In some cases, the child process may not be terminated by the code
          * above, so examine if process is alive and send SIGKILL if so. */
@@ -140,7 +107,7 @@ static void alarm_callback(int sig) {
     }
 }
 
-void initialize_exec (int is_replay) {
+void initialize_exec(void) {
     struct sigaction sa;
     void* handle = dlopen("libutil.so.1", RTLD_LAZY);
 
@@ -151,7 +118,6 @@ void initialize_exec (int is_replay) {
 
     sigemptyset(&sa.sa_mask);
 
-    replay_flag = is_replay;
     sa.sa_handler = alarm_callback;
     sigaction(SIGALRM, &sa, NULL);
 }
@@ -287,8 +253,8 @@ pid_t init_forkserver(int argc, char** args, uint64_t timeout, int forksrv_fd,
 
         struct rlimit r;
 
-        if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < PATH_FORKSRV_FD + 2) {
-          r.rlim_cur = PATH_FORKSRV_FD + 2;
+        if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < COV_FORKSRV_FD + 2) {
+          r.rlim_cur = COV_FORKSRV_FD + 2;
           setrlimit(RLIMIT_NOFILE, &r); /* Ignore errors */
         }
 
@@ -364,34 +330,38 @@ pid_t init_forkserver(int argc, char** args, uint64_t timeout, int forksrv_fd,
 }
 
 pid_t init_forkserver_coverage(int argc, char** args, uint64_t timeout) {
-    path_forksrv_pid = init_forkserver(argc, args, timeout, PATH_FORKSRV_FD,
-                       &path_stdin_fd, &path_fsrv_ctl_fd, &path_fsrv_st_fd);
-    return path_forksrv_pid;
+    coverage_forksrv_pid = init_forkserver(argc, args, timeout, COV_FORKSRV_FD,
+                                          &coverage_stdin_fd,
+                                          &coverage_fsrv_ctl_fd,
+                                          &coverage_fsrv_st_fd);
+    return coverage_forksrv_pid;
 }
 
 pid_t init_forkserver_branch(int argc, char** args, uint64_t timeout) {
-    feed_forksrv_pid = init_forkserver(argc, args, timeout, FEED_FORKSRV_FD,
-                       &feed_stdin_fd, &feed_fsrv_ctl_fd, &feed_fsrv_st_fd);
-    return feed_forksrv_pid;
+    branch_forksrv_pid = init_forkserver(argc, args, timeout, BR_FORKSRV_FD,
+                                         &branch_stdin_fd,
+                                         &branch_fsrv_ctl_fd,
+                                         &branch_fsrv_st_fd);
+    return branch_forksrv_pid;
 }
 
 void kill_forkserver() {
 
-    close(path_stdin_fd);
-    close(feed_stdin_fd);
+    close(coverage_stdin_fd);
+    close(branch_stdin_fd);
 
-    close(path_fsrv_ctl_fd);
-    close(path_fsrv_st_fd);
-    close(feed_fsrv_ctl_fd);
-    close(feed_fsrv_st_fd);
+    close(coverage_fsrv_ctl_fd);
+    close(coverage_fsrv_st_fd);
+    close(branch_fsrv_ctl_fd);
+    close(branch_fsrv_st_fd);
 
-    if (path_forksrv_pid) {
-        kill(path_forksrv_pid, SIGKILL);
-        path_forksrv_pid = 0;
+    if (coverage_forksrv_pid) {
+        kill(coverage_forksrv_pid, SIGKILL);
+        coverage_forksrv_pid = 0;
     }
-    if (feed_forksrv_pid) {
-        kill(feed_forksrv_pid, SIGKILL);
-        feed_forksrv_pid = 0;
+    if (branch_forksrv_pid) {
+        kill(branch_forksrv_pid, SIGKILL);
+        branch_forksrv_pid = 0;
     }
 }
 
@@ -401,16 +371,16 @@ int exec_fork_coverage(uint64_t timeout, int stdin_size, char *stdin_data) {
     static unsigned char tmp[4];
 
     /* TODO : what if we want to use pseudo-terminal? */
-    write_stdin(path_stdin_fd, stdin_size, stdin_data);
+    write_stdin(coverage_stdin_fd, stdin_size, stdin_data);
 
-    if ((res = write(path_fsrv_ctl_fd, tmp, 4)) != 4) {
+    if ((res = write(coverage_fsrv_ctl_fd, tmp, 4)) != 4) {
       perror("exec_fork_coverage: Cannot request new process to fork server");
       printf("write() call ret = %d\n", res);
       return -1;
     }
 
-    if ((res = read(path_fsrv_st_fd, &child_pid, 4)) != 4) {
-      perror("exec_fork_coverage: Failed to receive child pid from fork server");
+    if ((res = read(coverage_fsrv_st_fd, &child_pid, 4)) != 4) {
+      perror("exec_fork_coverage: Cannot receive child pid from fork server");
       printf("read() call ret = %d, child_pid = %d\n", res, child_pid);
       return -1;
     }
@@ -424,7 +394,7 @@ int exec_fork_coverage(uint64_t timeout, int stdin_size, char *stdin_data) {
     it.it_value.tv_usec = (timeout % 1000) * 1000;
     setitimer(ITIMER_REAL, &it, NULL);
 
-    if ((res = read(path_fsrv_st_fd, &childstatus, 4)) != 4) {
+    if ((res = read(coverage_fsrv_st_fd, &childstatus, 4)) != 4) {
       perror("exec_fork_coverage: Unable to communicate with fork server");
       printf("read() call ret = %d, childstatus = %d\n", res, childstatus);
       return -1;
@@ -450,30 +420,34 @@ int exec_fork_coverage(uint64_t timeout, int stdin_size, char *stdin_data) {
     }
 }
 
-int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data) {
-    uint64_t targ_addr, targ_index;
+int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data,
+                     uint64_t targ_addr, uint32_t targ_index, int measure_cov) {
     int res, childstatus;
     static struct itimerval it;
 
     /* TODO : what if we want to use pseudo-terminal? */
-    write_stdin(feed_stdin_fd, stdin_size, stdin_data);
+    write_stdin(branch_stdin_fd, stdin_size, stdin_data);
 
-    targ_addr = strtol(getenv("CK_FEED_ADDR"), NULL, 16);
-    targ_index = strtol(getenv("CK_FEED_IDX"), NULL, 16);
-    if ((res = write(feed_fsrv_ctl_fd, &targ_addr, 8)) != 8) {
-      perror("exec_fork_branch: Cannot request new process to fork server (1)");
+    if ((res = write(branch_fsrv_ctl_fd, &targ_addr, 8)) != 8) {
+      perror("exec_fork_branch: Cannot send targ_addr to fork server");
       printf("write() call ret = %d\n", res);
       return -1;
     }
 
-    if ((res = write(feed_fsrv_ctl_fd, &targ_index, 8)) != 8) {
-      perror("exec_fork_branch: Cannot request new process to fork server (2)");
+    if ((res = write(branch_fsrv_ctl_fd, &targ_index, 4)) != 4) {
+      perror("exec_fork_branch: Cannot send targ_index to fork server");
       printf("write() call ret = %d\n", res);
       return -1;
     }
 
-    if ((res = read(feed_fsrv_st_fd, &child_pid, 4)) != 4) {
-      perror("exec_fork_branch: Failed to receive child pid from fork server");
+    if ((res = write(branch_fsrv_ctl_fd, &measure_cov, 4)) != 4) {
+      perror("exec_fork_branch: Cannot send measure_cov to fork server");
+      printf("write() call ret = %d\n", res);
+      return -1;
+    }
+
+    if ((res = read(branch_fsrv_st_fd, &child_pid, 4)) != 4) {
+      perror("exec_fork_branch: Cannot receive child pid from fork server");
       printf("read() call ret = %d, child_pid = %d\n", res, child_pid);
       return -1;
     }
@@ -487,7 +461,7 @@ int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data) {
     it.it_value.tv_usec = (timeout % 1000) * 1000;
     setitimer(ITIMER_REAL, &it, NULL);
 
-    if ((res = read(feed_fsrv_st_fd, &childstatus, 4)) != 4) {
+    if ((res = read(branch_fsrv_st_fd, &childstatus, 4)) != 4) {
       perror("exec_fork_branch: Unable to communicate with fork server");
       printf("read() call ret = %d, childstatus = %d\n", res, childstatus);
       return -1;
@@ -511,13 +485,4 @@ int exec_fork_branch(uint64_t timeout, int stdin_size, char *stdin_data) {
     } else {
         return 0;
     }
-}
-
-int prepare_shared_mem(void) {
-  shm_id = shmget(IPC_PRIVATE, 0x10000, IPC_CREAT | IPC_EXCL | 0600);
-  return shm_id;
-}
-
-int release_shared_mem(void) {
-  return shmctl(shm_id, IPC_RMID, 0);
 }

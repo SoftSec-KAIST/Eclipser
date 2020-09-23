@@ -1,11 +1,11 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
 #include <signal.h>
-
+#include <sys/mman.h>
+#include <fcntl.h>
 #include "tcg.h"
 
 #ifdef TARGET_X86_64
@@ -20,64 +20,76 @@ extern unsigned int afl_forksrv_pid;
 
 #define MAX_TRACE_LEN (1000000)
 
-static abi_ulong hash = 5381; // djb2 hash
+abi_ulong chatkey_entry_point = 0; /* ELF entry point (_start) */
+abi_ulong chatkey_curr_addr = 0;
+abi_ulong chatkey_targ_addr = 0;
+uint32_t chatkey_targ_index = 0;
+int measure_coverage = 0;
+int chatkey_EP_passed = 0;
 
-abi_ulong chatkey_entry_point;
-abi_ulong chatkey_curr_addr;
-abi_ulong chatkey_targ_addr;
+static int found_new_edge = 0;
+static int found_new_path = 0; // TODO. Extend to measure path coverage, too.
+static abi_ulong prev_node = 0;
+static char * coverage_path = NULL;
+static char * branch_path = NULL;
+static FILE * coverage_fp = NULL;
+static FILE * branch_fp = NULL;
+static unsigned char * accum_edge_bitmap = NULL;
+
 unsigned char trace_buffer[MAX_TRACE_LEN * (sizeof(abi_ulong) + sizeof(unsigned char) + 2 * sizeof(abi_ulong)) + 64];
 unsigned char * buf_ptr = trace_buffer;
 
-size_t chatkey_targ_index;
-bool chatkey_EP_passed = false;
-
-static size_t targ_hit_count = 0;
-static size_t trace_count = 0;
-static FILE * branch_fp;
-static FILE * hash_fp;
-
-void flush_trace_buffer(void);
-void chatkey_setup(void);
-void chatkey_close_fp(void);
-void chatkey_exit(void);
-void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char operand_type);
-void chatkey_update_hash(register abi_ulong addr);
+static uint32_t targ_hit_count = 0;
+static uint32_t trace_count = 0;
 
 void flush_trace_buffer(void) {
   size_t len = buf_ptr - trace_buffer;
   fwrite(trace_buffer, len, 1, branch_fp);
 }
 
-void chatkey_setup(void) {
+void chatkey_setup_before_forkserver(void) {
+  char * bitmap_path = getenv("CK_BITMAP_LOG");
+  int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
+  accum_edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
+  assert(accum_edge_bitmap != (void *) -1);
 
-  char * branch_path = getenv("CK_FEED_LOG");
-  char * hash_path = getenv("CK_HASH_LOG");
+  coverage_path = getenv("CK_COVERAGE_LOG");
+  branch_path = getenv("CK_FEED_LOG");
 
-  assert(branch_path != NULL);
-  branch_fp = fopen(branch_path, "w");
-  assert(branch_fp != NULL);
+  chatkey_EP_passed = 1;
+}
 
-  assert(hash_path != NULL);
-  hash_fp = fopen(hash_path, "w");
-  assert(hash_fp != NULL);
+void chatkey_setup_after_forkserver(void) {
 
   assert(getenv("CK_FORK_SERVER") != NULL);
-  // If fork server is enabled, chatkey_targ_* should have been set already.
+  // If fork server is enabled, the following data are set during the handshake.
   if (atoi(getenv("CK_FORK_SERVER")) == 0) {
     chatkey_targ_addr = strtol(getenv("CK_FEED_ADDR"), NULL, 16);
     chatkey_targ_index = strtol(getenv("CK_FEED_IDX"), NULL, 16);
+    measure_coverage = atoi(getenv("CK_MEASURE_COV"));
   }
 
+  if (measure_coverage == 1) {
+    coverage_fp = fopen(coverage_path, "w");
+    assert(coverage_fp != NULL);
+  }
+
+  branch_fp = fopen(branch_path, "w");
+  assert(branch_fp != NULL);
 }
 
-// When fork() syscall is encountered, child process should call this function
+// When fork() syscall is encountered, child process should call this function.
 void chatkey_close_fp(void) {
+  // Close file pointers, to avoid dumping log twice.
+  if (coverage_fp) {
+    fclose(coverage_fp);
+    coverage_fp = NULL;
+  }
 
-  // close 'branch_fp', since we don't want to dump log twice
-  fclose(branch_fp);
-  branch_fp = NULL;
-
-  fclose(hash_fp);
+  if (branch_fp) {
+    fclose(branch_fp);
+    branch_fp = NULL;
+  }
 
   if (afl_forksrv_pid)
     close(TSL_FD);
@@ -87,27 +99,24 @@ void chatkey_exit(void) {
   abi_ulong nil = 0;
   sigset_t mask;
 
-  // If chatkey_close_fp() was called, then return without any action
-  if (branch_fp == NULL)
-    return;
-
   // Block signals, since we register signal handler that calls chatkey_exit()
   if (sigfillset(&mask) < 0)
     return;
   if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0)
     return;
 
-  flush_trace_buffer();
+  if (coverage_fp) {
+    fprintf(coverage_fp, "%d\n%d\n", found_new_edge, found_new_path);
+    fclose(coverage_fp);
+    coverage_fp = NULL;
+  }
 
-  fwrite(&nil, sizeof(abi_ulong), 1, branch_fp);
-  fclose(branch_fp);
-
-#ifdef TARGET_X86_64
-  fprintf(hash_fp, "%lu\n", hash);
-#else
-  fprintf(hash_fp, "%u\n", hash);
-#endif
-  fclose(hash_fp);
+  if (branch_fp) {
+    flush_trace_buffer();
+    fwrite(&nil, sizeof(abi_ulong), 1, branch_fp);
+    fclose(branch_fp);
+    branch_fp = NULL;
+  }
 }
 
 /* Recall that in 64bit we already pushed rdi/rsi/rdx before calling
@@ -182,15 +191,17 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
       fwrite(&type, sizeof(unsigned char), 1, branch_fp);
       fwrite(&oprnd1_truncated, operand_size, 1, branch_fp);
       fwrite(&oprnd2_truncated, operand_size, 1, branch_fp);
-      if (oprnd1_truncated != oprnd2_truncated) {
-        /* If two operands are not equal, then path hash of this execution is
-         * not used in Chatkey. Therefore, finish execution to save time.
+      if (oprnd1_truncated != oprnd2_truncated || !coverage_fp) {
+        /* If the two operands are not equal, exit signal or coverage gain is
+         * not used in F# code. Simiarly, when coverage_fp is NULL, this means
+         * we are interested in branch distance only, and not in exit signal or
+         * coverage gain. In these case, halt the execution here to save time.
          */
         chatkey_exit();
         exit(0);
       }
     }
-  } else if (trace_count ++ < MAX_TRACE_LEN) {
+  } else if (trace_count++ < MAX_TRACE_LEN) {
     /* We're in the mode that traces all the cmp/test instructions */
     if (operand_type == MO_8) {
       oprnd1_truncated = oprnd1 & 0xff;
@@ -241,20 +252,36 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
   } else {
     /* We're in the mode that traces all the cmp/test instructions, and trace
      * limit has exceeded. Abort tracing. */
-    abi_ulong nil = 0;
-    flush_trace_buffer();
-    fwrite(&nil, sizeof(abi_ulong), 1, branch_fp);
-    fclose(branch_fp);
-    // output 0 as path hash to indicate abortion.
-    fprintf(hash_fp, "0\n");
-    fclose(hash_fp);
+    chatkey_exit();
     exit(0);
   }
 }
 
+void chatkey_log_bb(abi_ulong addr) {
+  abi_ulong edge, hash;
+  unsigned int byte_idx, byte_mask;
+  unsigned char old_byte, new_byte;
 
-void chatkey_update_hash(register abi_ulong addr) {
-    register unsigned int i;
-    for (i = 0; i < sizeof(abi_ulong); i++)
-        hash = ((hash << 5) + hash) + ((addr >> (i<<3)) & 0xff);
+  chatkey_curr_addr = addr;
+
+  if (!coverage_fp)
+    return;
+
+#ifdef TARGET_X86_64
+  edge = (prev_node << 16) ^ addr;
+#else
+  edge = (prev_node << 8) ^ addr;
+#endif
+  prev_node = addr;
+
+  // Update bitmap.
+  hash = (edge >> 4) ^ (edge << 8);
+  byte_idx = (hash >> 3) & 0xffff;
+  byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
+  old_byte = accum_edge_bitmap[byte_idx];
+  new_byte = old_byte | byte_mask;
+  if (old_byte != new_byte) {
+    found_new_edge = 1;
+    accum_edge_bitmap[byte_idx] = new_byte;
+  }
 }

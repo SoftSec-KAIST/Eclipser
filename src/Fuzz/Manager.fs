@@ -26,25 +26,8 @@ let mutable private argTestCaseCount = 0
 let mutable private stdinTestCaseCount = 0
 let mutable private fileTestCaseCount = 0
 let mutable private testCaseCount = 0
-let private pathHashes = new HashSet<Hash>()
-let private crashEdgeHashes = new HashSet<Hash>()
-
-let isNewPath pathHash =
-  // The case of pathHash = 0UL means abortion due to threshold or other errors.
-  pathHash <> 0UL && not (pathHashes.Contains pathHash)
-
-let private addPathHash pathHash =
-  // The case of pathHash = 0UL means abortion due to threshold or other errors.
-  pathHash <> 0UL && pathHashes.Add pathHash
-
-let private addCrashHash crashEdgeHash =
-  crashEdgeHash <> 0UL && crashEdgeHashes.Add crashEdgeHash
-
-let getPathCount () =
-  pathHashes.Count
 
 let printStatistics () =
-  log "Paths : %d" pathHashes.Count
   log "Testcases : %d" testCaseCount
   log "Input vector of test cases"
   log "  Argument : %d" argTestCaseCount
@@ -83,19 +66,15 @@ let private dumpTestCase seed =
   System.IO.File.WriteAllBytes(tcPath, Seed.concretize seed)
   updateTestcaseCount ()
 
-let private checkCrash opt exitSig seed edgeHash =
-  if Signal.isCrash exitSig && addCrashHash edgeHash
-  then (true, exitSig)
+let private checkCrash opt seed exitSig covGain =
+  if Signal.isCrash exitSig && covGain = NewEdge then (true, exitSig)
   elif Signal.isTimeout exitSig then // Check again with native execution
     let exitSig' = Executor.nativeExecute opt seed
-    if Signal.isCrash exitSig' && addCrashHash edgeHash
-    then (true, exitSig')
+    if Signal.isCrash exitSig' && covGain = NewEdge then (true, exitSig')
     else (false, exitSig')
   else (false, exitSig)
 
-let save opt seed newN pathHash edgeHash exitSig isInitSeed =
-  let isNewPath = addPathHash pathHash
-  let isNewCrash, exitSig' = checkCrash opt exitSig seed edgeHash
-  if newN > 0 || isInitSeed then dumpTestCase seed
+let save opt seed exitSig covGain =
+  let isNewCrash, exitSig' = checkCrash opt seed exitSig covGain
   if isNewCrash then dumpCrash opt seed exitSig'
-  isNewPath
+  if covGain = NewEdge then dumpTestCase seed

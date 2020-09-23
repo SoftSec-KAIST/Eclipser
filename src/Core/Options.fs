@@ -71,7 +71,7 @@ let parseFuzzOption (args: string array) =
     Timelimit = r.GetResult (<@ Timelimit @>)
     // Options related to program execution
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
-    ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DefaultExecTO)
+    ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DEF_EXEC_TO)
     UsePty = r.Contains (<@ UsePty @>)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString

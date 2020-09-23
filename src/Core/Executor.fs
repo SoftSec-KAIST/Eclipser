@@ -3,7 +3,6 @@ module Eclipser.Executor
 open System
 open System.IO
 open System.Runtime.InteropServices
-open Config
 open Utils
 open Options
 
@@ -12,25 +11,14 @@ let private WHITES = [| ' '; '\t'; '\n' |]
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
 type Tracer = Coverage | Branch | BBCount
 
-/// Specifies the method to handle execution timeout. It is necessary to use GDB
-/// when replaying test cases against a gcov-compiled binary, to log coverage
-/// correctly.
-type TimeoutHandling =
-  /// Send SIGTERM to the process
-  | SendSigterm = 0
-  /// Attach to the process with GDB and quit()
-  | GDBQuit = 1
-
 [<DllImport("libexec.dll")>] extern void set_env (string env_variable, string env_value)
-[<DllImport("libexec.dll")>] extern void initialize_exec (TimeoutHandling is_replay)
+[<DllImport("libexec.dll")>] extern void initialize_exec ()
 [<DllImport("libexec.dll")>] extern int init_forkserver_coverage (int argc, string[] argv, uint64 timeout)
 [<DllImport("libexec.dll")>] extern int init_forkserver_branch (int argc, string[] argv, uint64 timeout)
 [<DllImport("libexec.dll")>] extern void kill_forkserver ()
 [<DllImport("libexec.dll")>] extern Signal exec (int argc, string[] argv, int stdin_size, byte[] stdin_data, uint64 timeout, bool use_pty)
 [<DllImport("libexec.dll")>] extern Signal exec_fork_coverage (uint64 timeout, int stdin_size, byte[] stdin_data)
-[<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data)
-[<DllImport("libexec.dll")>] extern int prepare_shared_mem ()
-[<DllImport("libexec.dll")>] extern int release_shared_mem ()
+[<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data, uint64 targ_addr, uint32 targ_index, int measure_cov)
 
 (*** Tracer and file paths ***)
 
@@ -53,9 +41,9 @@ let selectTracer tracer arch =
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
-let mutable pathHashLog = ""
-let mutable branchTraceLog = ""
+let mutable branchLog = ""
 let mutable coverageLog = ""
+let mutable bitmapLog = ""
 let mutable dbgLog = ""
 let mutable forkServerEnabled = false
 
@@ -63,24 +51,21 @@ let initialize opt =
   let outDir = opt.OutDir
   let verbosity = opt.Verbosity
   // Set environment variables for the instrumentor.
-  pathHashLog <- System.IO.Path.Combine(outDir, ".path_hash")
-  branchTraceLog <- System.IO.Path.Combine(outDir, ".branch_trace")
+  branchLog <- System.IO.Path.Combine(outDir, ".branch")
   coverageLog <- System.IO.Path.Combine(outDir, ".coverage")
-  dbgLog <- System.IO.Path.Combine(outDir, ".debug_msg")
-  set_env("CK_HASH_LOG", System.IO.Path.GetFullPath(pathHashLog))
-  set_env("CK_FEED_LOG", System.IO.Path.GetFullPath(branchTraceLog))
+  bitmapLog <- System.IO.Path.Combine(outDir, ".bitmap")
+  dbgLog <- System.IO.Path.Combine(outDir, ".debug")
+  set_env("CK_FEED_LOG", System.IO.Path.GetFullPath(branchLog))
   set_env("CK_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
+  use bitmapFile = File.Create(bitmapLog)
+  bitmapFile.SetLength(0x10000L)
+  set_env("CK_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
   if verbosity >= 2 then
     set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
-  // Set other environment variables in advance, to avoid affecting path hash.
   set_env("CK_FEED_ADDR", "0")
   set_env("CK_FEED_IDX", "0")
-  set_env("CK_CTX_SENSITIVITY", string CtxSensitivity)
-  initialize_exec TimeoutHandling.SendSigterm
-  // Initialize shared memory.
-  let shmID = prepare_shared_mem()
-  if shmID < 0 then failwith "Failed to allcate shared memory"
-  set_env("CK_SHM_ID", string shmID)
+  set_env("CK_MEASURE_COV", "0")
+  initialize_exec ()
   // Initialize fork server.
   forkServerEnabled <- true
   set_env("CK_FORK_SERVER", "1")
@@ -98,10 +83,9 @@ let initialize opt =
 
 let cleanup () =
   if forkServerEnabled then kill_forkserver ()
-  if release_shared_mem() < 0 then log "Failed to release shared memory!"
-  removeFile pathHashLog
-  removeFile branchTraceLog
+  removeFile branchLog
   removeFile coverageLog
+  removeFile bitmapLog
   removeFile dbgLog
 
 let abandonForkServer () =
@@ -121,11 +105,6 @@ let private setupFile seed =
   | StdInput -> ()
   | FileInput filePath -> writeFile filePath (Seed.concretize seed)
 
-let private clearFile seed =
-  match seed.Source with
-  | StdInput -> ()
-  | FileInput filePath -> removeFile filePath
-
 let private prepareStdIn seed =
   match seed.Source with
   | StdInput -> Seed.concretize seed
@@ -133,38 +112,16 @@ let private prepareStdIn seed =
 
 (*** Tracer result parsing functions ***)
 
+/// TODO. Currently we only support edge coverage gain. Will extend the system
+/// to support path coverage gain if needed.
 let private parseCoverage filename =
-  let content = readAllLines filename
-  match content with
-  | [newEdgeCnt; pathHash; edgeHash] ->
-    int newEdgeCnt, uint64 pathHash, uint64 edgeHash
-  | _ -> log "[Warning] Coverage logging failed : %A" content; (0, 0UL, 0UL)
-
-let private parseExecHash filename =
-  let content = readAllLines filename
-  match content with
-  | [hash] -> uint64 hash
-  | _ -> log "[Warning] Coverage logging failed : %A" content; 0UL
+  match readAllLines filename with
+  | [newEdgeFlag; _] -> if int newEdgeFlag = 1 then NewEdge else NoGain
+  | x -> log "[Warning] Coverage logging failed : %A" x; NoGain
 
 let private is64Bit = function
   | X86 -> false
   | X64 -> true
-
-let private readEdgeSet opt filename =
-  try
-    let f = File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read)
-    use r = new BinaryReader(f)
-    let arch = opt.Architecture
-    let mutable valid = true
-    let edgeList =
-      [ while valid do
-          let addr = try if is64Bit arch
-                         then r.ReadUInt64()
-                         else uint64 (r.ReadUInt32())
-                     with :? EndOfStreamException -> 0UL
-          if addr = 0UL then valid <- false else yield addr ]
-    Set.ofList edgeList
-  with | :? FileNotFoundException -> Set.empty
 
 let private parseBranchTraceLog opt (r:BinaryReader) tryVal =
   let arch = opt.Architecture
@@ -206,6 +163,12 @@ let private readBranchTrace opt filename tryVal =
       | Some branchInfo -> yield branchInfo ]
   with | :? FileNotFoundException -> []
 
+let private tryReadBranchInfo opt filename tryVal =
+  match readBranchTrace opt filename tryVal with
+  | [] -> None
+  | [ branchInfo ] -> Some branchInfo
+  | _ -> None
+
 (*** Tracer execute functions ***)
 
 let private runTracer tracerType opt (stdin: byte array) =
@@ -218,63 +181,68 @@ let private runTracer tracerType opt (stdin: byte array) =
   let argc = args.Length
   exec(argc, args, stdin.Length, stdin, timeout, usePty)
 
-let private runCoverageTracerForked opt (stdin: byte array) =
+let private runCoverageTracerForked opt stdin =
   let timeout = opt.ExecTimeout
-  let signal = exec_fork_coverage(timeout, stdin.Length, stdin)
+  let stdLen = Array.length stdin
+  let signal = exec_fork_coverage(timeout, stdLen, stdin)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
-let private runBranchTracerForked opt (stdin: byte array) =
+let private runBranchTracerForked opt stdin addr idx measureCov =
   let timeout = opt.ExecTimeout
-  let signal = exec_fork_branch(timeout, stdin.Length, stdin)
+  let stdLen = Array.length stdin
+  let covFlag = if measureCov then 1 else 0
+  let signal = exec_fork_branch(timeout, stdLen, stdin, addr, idx, covFlag)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
+
+let private setEnvForBranch (addr: uint64) (idx: uint32) measureCov =
+  set_env("CK_FEED_ADDR", sprintf "%016x" addr)
+  set_env("CK_FEED_IDX", sprintf "%016x" idx)
+  set_env("CK_MEASURE_COV", sprintf "%d" (if measureCov then 1 else 0))
 
 (*** Top-level tracer executor functions ***)
 
 let getCoverage opt seed =
   setupFile seed
   let stdin = prepareStdIn seed
-  let exitSig = if forkServerEnabled
-                then runCoverageTracerForked opt stdin
+  let exitSig = if forkServerEnabled then runCoverageTracerForked opt stdin
                 else runTracer Coverage opt stdin
-  let newEdgeCnt, pathHash, edgeHash = parseCoverage coverageLog
-  clearFile seed
-  (newEdgeCnt, pathHash, edgeHash, exitSig)
+  let coverageGain = parseCoverage coverageLog
+  (exitSig, coverageGain)
 
 let getBranchTrace opt seed tryVal =
-  set_env("CK_FEED_ADDR", "0")
-  set_env("CK_FEED_IDX", "0")
   setupFile seed
   let stdin = prepareStdIn seed
-  if forkServerEnabled then runBranchTracerForked opt stdin
-  else runTracer Branch opt stdin
-  |> ignore
-  let pathHash = parseExecHash pathHashLog
-  let branchTrace = readBranchTrace opt branchTraceLog tryVal
-  clearFile seed
-  removeFile pathHashLog
-  removeFile branchTraceLog
-  pathHash, branchTrace
+  let exitSig =
+    if forkServerEnabled then runBranchTracerForked opt stdin 0UL 0ul true
+    else setEnvForBranch 0UL 0ul true; runTracer Branch opt stdin
+  let coverageGain = parseCoverage coverageLog
+  let branchTrace = readBranchTrace opt branchLog tryVal
+  removeFile coverageLog
+  (exitSig, coverageGain, branchTrace)
 
-let getBranchInfoAt opt seed tryVal targPoint =
-  set_env("CK_FEED_ADDR", sprintf "%016x" targPoint.Addr)
-  set_env("CK_FEED_IDX", sprintf "%016x" targPoint.Idx)
+let getBranchInfo opt seed tryVal targPoint =
   setupFile seed
   let stdin = prepareStdIn seed
-  if forkServerEnabled then runBranchTracerForked opt stdin
-  else runTracer Branch opt stdin
+  let addr, idx = targPoint.Addr, uint32 targPoint.Idx
+  let exitSig =
+    if forkServerEnabled then runBranchTracerForked opt stdin addr idx true
+    else setEnvForBranch addr idx true; runTracer Branch opt stdin
+  let coverageGain = parseCoverage coverageLog
+  let branchInfoOpt = tryReadBranchInfo opt branchLog tryVal
+  removeFile coverageLog
+  (exitSig, coverageGain, branchInfoOpt)
+
+let getBranchInfoOnly opt seed tryVal targPoint =
+  setupFile seed
+  let stdin = prepareStdIn seed
+  let addr, idx = targPoint.Addr, uint32 targPoint.Idx
+  if forkServerEnabled then runBranchTracerForked opt stdin addr idx false
+  else setEnvForBranch addr idx false; runTracer Branch opt stdin
   |> ignore
-  let pathHash = parseExecHash pathHashLog
-  let branchInfoOpt =
-    match readBranchTrace opt branchTraceLog tryVal with
-    | [] -> None
-    | [ branchInfo ] -> Some branchInfo
-    | branchInfos -> None
-  clearFile seed
-  removeFile pathHashLog
-  removeFile branchTraceLog
-  (pathHash, branchInfoOpt)
+  let brInfoOpt = tryReadBranchInfo opt branchLog tryVal
+  brInfoOpt
 
 let nativeExecute opt seed =
   let targetProg = opt.TargetProg
@@ -285,6 +253,5 @@ let nativeExecute opt seed =
   let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
   let args = Array.append [| targetProg |] cmdLine
   let argc = args.Length
-  let signal = exec(argc, args, stdin.Length, stdin, timeout, usePty)
-  clearFile seed
-  signal
+  exec(argc, args, stdin.Length, stdin, timeout, usePty)
+

@@ -7,7 +7,7 @@
 +extern abi_ulong chatkey_entry_point; /* ELF entry point (_start) */
 +extern void chatkey_setup_before_forkserver(void);
 +extern void chatkey_setup_after_forkserver(void);
-+extern void chatkey_log_bb(abi_ulong addr, abi_ulong callsite);
++extern void chatkey_log_bb(abi_ulong addr);
 +
 +#include "afl-qemu-cpu-inl.h"
 +
@@ -37,7 +37,7 @@
 +                  chatkey_setup_after_forkserver();
 +                }
 +
-+                chatkey_log_bb(tb->pc, 0);
++                chatkey_log_bb(tb->pc);
 +
                  if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
                      qemu_log("Trace %p [" TARGET_FMT_lx "] %s\n",

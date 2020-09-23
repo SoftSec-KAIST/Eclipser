@@ -14,7 +14,6 @@
     <Compile Include="Core/Seed.fs" />
     <Compile Include="Core/BranchInfo.fs" />
     <Compile Include="Core/Executor.fs" />
-    <Compile Include="Fuzz/Manager.fs" />
     <Compile Include="GreyConcolic/BranchTrace.fs" />
     <Compile Include="GreyConcolic/Linearity.fs" />
     <Compile Include="GreyConcolic/LinearEquation.fs" />
@@ -24,6 +23,7 @@
     <Compile Include="GreyConcolic/PathConstraint.fs" />
     <Compile Include="GreyConcolic/Solve.fs" />
     <Compile Include="GreyConcolic/GreyConcolic.fs" />
+    <Compile Include="Fuzz/Manager.fs" />
     <Compile Include="Fuzz/SeedQueue.fs" />
     <Compile Include="Fuzz/Fuzz.fs" />
   </ItemGroup>

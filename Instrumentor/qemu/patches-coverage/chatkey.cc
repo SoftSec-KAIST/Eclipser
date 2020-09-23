@@ -1,13 +1,11 @@
 #include <stdint.h>
-#include <sys/mman.h>
-#include <sys/shm.h>
-#include <fcntl.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sparsehash/dense_hash_set>
-
-using google::dense_hash_set;
+#include <sys/mman.h>
+#include <fcntl.h>
 
 #ifdef TARGET_X86_64
 typedef uint64_t abi_ulong;
@@ -21,42 +19,31 @@ extern unsigned int afl_forksrv_pid;
 
 abi_ulong chatkey_entry_point; /* ELF entry point (_start) */
 
-int passed_forkserver = 0;
-static uint32_t new_edge_cnt = 0; // # of new edges visited in this execution
-static abi_ulong edge_set_hash = 5381; // djb2 hash
-static abi_ulong path_hash = 5381; // djb2 hash
+static int found_new_edge = 0;
+static int found_new_path = 0; // TODO. Extend to measure path coverage, too.
 static abi_ulong prev_node = 0;
-static FILE* coverage_fp;
-static FILE* dbg_fp;
-
+static char * coverage_path = NULL;
+static char * dbg_path = NULL;
+static FILE * coverage_fp = NULL;
+static FILE * dbg_fp = NULL;
 static unsigned char * accum_edge_bitmap;
-static unsigned char edge_bitmap[0x10000];
-// Holds edges visited in this exec (will be dumped into a file)
-static dense_hash_set<abi_ulong> edge_set;
 
 extern "C" void chatkey_setup_before_forkserver(void) {
-  char * shm_id;
-
-  shm_id = getenv("CK_SHM_ID");
-  assert(shm_id != NULL);
-  accum_edge_bitmap = (unsigned char *) shmat(atoi(shm_id), NULL, 0);
+  char * bitmap_path = getenv("CK_BITMAP_LOG");
+  int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
+  accum_edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
   assert(accum_edge_bitmap != (void *) -1);
 
-  edge_set.set_empty_key(0);
+  coverage_path = getenv("CK_COVERAGE_LOG");
+  dbg_path = getenv("CK_DBG_LOG");
 }
 
 extern "C" void chatkey_setup_after_forkserver(void) {
-  char * dbg_path = getenv("CK_DBG_LOG");
-  char * coverage_path = getenv("CK_COVERAGE_LOG");
-
-  passed_forkserver = 1;
-
   /* Open file pointers and descriptors early, since if we try to open them in
    * chatkey_exit(), it gets mixed with stderr & stdout stream. This seems to
    * be an issue due to incorrect file descriptor management in QEMU code.
    */
 
-  assert(coverage_path != NULL);
   coverage_fp = fopen(coverage_path, "w");
   assert(coverage_fp != NULL);
 
@@ -67,12 +54,18 @@ extern "C" void chatkey_setup_after_forkserver(void) {
   }
 }
 
-// When fork() syscall is encountered, child process should call this function
+// When fork() syscall is encountered, child process should call this function.
 extern "C" void chatkey_close_fp(void) {
+  // Close file pointers, to avoid dumping log twice.
+  if (coverage_fp) {
+    fclose(coverage_fp);
+    coverage_fp = NULL;
+  }
 
-  // close 'coverage_fp', since we don't want to dump log twice
-  fclose(coverage_fp);
-  coverage_fp = NULL;
+  if (dbg_fp) {
+    fclose(dbg_fp);
+    dbg_fp = NULL;
+  }
 
   if (afl_forksrv_pid)
     close(TSL_FD);
@@ -81,81 +74,55 @@ extern "C" void chatkey_close_fp(void) {
 extern "C" void chatkey_exit(void) {
   sigset_t mask;
 
-  // If chatkey_close_fp() was called, then return without any action.
-  if (coverage_fp == NULL)
-    return;
-
   // Block signals, since we register signal handler that calls chatkey_exit()/
   if (sigfillset(&mask) < 0)
     return;
   if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0)
     return;
 
-  /* Output new edge # and path hash. */
-  fprintf(coverage_fp, "%d\n", new_edge_cnt);
-#ifdef TARGET_X86_64
-  fprintf(coverage_fp, "%lu\n", path_hash);
-  fprintf(coverage_fp, "%lu\n", edge_set_hash);
-#else
-  fprintf(coverage_fp, "%u\n", path_hash);
-  fprintf(coverage_fp, "%u\n", edge_set_hash);
-#endif
+  if (coverage_fp) {
+    fprintf(coverage_fp, "%d\n%d\n", found_new_edge, found_new_path);
+    fclose(coverage_fp);
+    coverage_fp = NULL;
+  }
 
-  fclose(coverage_fp);
-
-  if (dbg_fp)
+  if (dbg_fp) {
     fclose(dbg_fp);
+    dbg_fp = NULL;
+  }
 }
 
-static inline void chatkey_update_path_hash(register abi_ulong addr) {
-    register unsigned int i;
-    for (i = 0; i < sizeof(abi_ulong); i++)
-        path_hash = ((path_hash << 5) + path_hash) + ((addr >> (i<<3)) & 0xff);
-}
+extern "C" void chatkey_log_bb(abi_ulong addr) {
+  abi_ulong edge, hash;
+  unsigned int byte_idx, byte_mask;
+  unsigned char old_byte, new_byte;
 
-static inline void update_edge_set_hash(register abi_ulong edge_hash) {
-  edge_set_hash = edge_set_hash ^ edge_hash;
-}
+  if (!coverage_fp)
+    return;
 
-extern "C" void chatkey_log_bb(abi_ulong addr, abi_ulong callsite) {
-    abi_ulong edge, hash;
-    unsigned int byte_idx, byte_mask;
-    unsigned char old_byte, new_byte;
-
-    chatkey_update_path_hash(addr);
-    edge = addr;
 #ifdef TARGET_X86_64
-    edge = (prev_node << 16) ^ addr;
+  edge = (prev_node << 16) ^ addr;
 #else
-    edge = (prev_node << 8) ^ addr;
+  edge = (prev_node << 8) ^ addr;
 #endif
-    prev_node = addr;
+  prev_node = addr;
 
-    if (passed_forkserver) {
-      // Check and update both edge_bitmap and accumulative bitmap
-      hash = (edge >> 4) ^ (edge << 8);
-      byte_idx = (hash >> 3) & 0xffff;
-      byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
-      old_byte = edge_bitmap[byte_idx];
-      new_byte = old_byte | byte_mask;
-      if (old_byte != new_byte) {
-        edge_bitmap[byte_idx] = new_byte;
-        // If it's a new edge, update edge hash and also add to accumulative map
-        update_edge_set_hash(hash);
-        old_byte = accum_edge_bitmap[byte_idx];
-        new_byte = old_byte | byte_mask;
-        if (old_byte != new_byte) {
-          new_edge_cnt++;
-          accum_edge_bitmap[byte_idx] = new_byte;
-          /* Log visited addrs if dbg_fp is not NULL */
-          if (dbg_fp) {
+  // Update bitmap.
+  hash = (edge >> 4) ^ (edge << 8);
+  byte_idx = (hash >> 3) & 0xffff;
+  byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
+  old_byte = accum_edge_bitmap[byte_idx];
+  new_byte = old_byte | byte_mask;
+  if (old_byte != new_byte) {
+    found_new_edge = 1;
+    accum_edge_bitmap[byte_idx] = new_byte;
+    /* Log visited addrs if dbg_fp is not NULL */
+    if (dbg_fp) {
 #ifdef TARGET_X86_64
-            fprintf(dbg_fp, "(0x%lx, 0x%lx)\n", addr, callsite);
+      fprintf(dbg_fp, "(0x%lx)\n", addr);
 #else
-            fprintf(dbg_fp, "(0x%x, 0x%x)\n", addr, callsite);
+      fprintf(dbg_fp, "(0x%x)\n", addr);
 #endif
-          }
-        }
-      }
     }
+  }
 }

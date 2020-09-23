@@ -42,7 +42,6 @@ export_coverage_patch() {
   cp qemu-2.3.0-coverage/Makefile.target $TARG_DIR/Makefile.target
   cp qemu-2.3.0-coverage/chatkey.cc $TARG_DIR/
   cp qemu-2.3.0-coverage/afl-qemu-cpu-inl.h $TARG_DIR/
-  cp qemu-2.3.0-coverage/chatkey-utils.h $TARG_DIR/
 }
 
 export_branch_patch() {
@@ -120,7 +119,6 @@ patch -p0 <patches-coverage/translate.diff || exit 1
 patch -p0 <patches-coverage/makefile-target.diff || exit 1
 cp patches-coverage/chatkey.cc qemu-2.3.0-coverage/
 cp patches-coverage/afl-qemu-cpu-inl.h qemu-2.3.0-coverage/
-cp patches-coverage/chatkey-utils.h qemu-2.3.0-coverage/
 
 export_coverage_patch "x86"
 export_coverage_patch "x64"

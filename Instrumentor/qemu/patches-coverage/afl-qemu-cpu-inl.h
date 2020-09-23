@@ -23,8 +23,6 @@
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
-extern abi_ulong mmap_next_start;
-
 /* Set in the child process in forkserver mode: */
 
 static unsigned char afl_fork_child;
@@ -59,8 +57,7 @@ static void afl_forkserver(CPUArchState *env) {
 
   static unsigned char tmp[4];
 
-    if (!getenv("CK_COVERAGE_LOG"))
-        return;
+  if (atoi(getenv("CK_FORK_SERVER")) != 1) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */

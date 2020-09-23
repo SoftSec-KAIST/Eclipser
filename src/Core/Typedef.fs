@@ -13,6 +13,12 @@ type InputSource =
   /// Fuzz file input source.
   | FileInput of filepath: string
 
+/// Describes the gain of coverage.
+type CoverageGain =
+  | NoGain
+  | NewPath
+  | NewEdge
+
 /// Priority of found seed. A seed that increased edge coverage is assigned
 /// 'Favored' priority, while a seed that increased path coverage is assigned
 /// 'Normal' priority.

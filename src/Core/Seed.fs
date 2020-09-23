@@ -95,8 +95,8 @@ module Seed =
   // Auxiliary function for queryUpdateBound()
   let private queryUpdateBoundLeft (byteVals: ByteVal []) byteCursor =
     let byteVals' =
-      if byteCursor - MaxChunkLen >= 0
-      then byteVals.[byteCursor - MaxChunkLen .. byteCursor]
+      if byteCursor - MAX_CHUNK_LEN >= 0
+      then byteVals.[byteCursor - MAX_CHUNK_LEN .. byteCursor]
       else byteVals.[ .. byteCursor]
     // We use an heuristic to bound update until the adjacent *fixed* ByteVal.
     match Array.tryFindIndexBack ByteVal.isFixed byteVals' with
@@ -106,12 +106,12 @@ module Seed =
   // Auxiliary function for queryUpdateBound()
   let private queryUpdateBoundRight (byteVals: ByteVal []) byteCursor =
     let byteVals' =
-      if byteCursor + MaxChunkLen < byteVals.Length
-      then byteVals.[byteCursor .. byteCursor + MaxChunkLen]
+      if byteCursor + MAX_CHUNK_LEN < byteVals.Length
+      then byteVals.[byteCursor .. byteCursor + MAX_CHUNK_LEN]
       else byteVals.[byteCursor .. ]
     // We use an heuristic to bound update until the adjacent *fixed* ByteVal.
     match Array.tryFindIndex ByteVal.isFixed byteVals' with
-    | None -> MaxChunkLen
+    | None -> MAX_CHUNK_LEN
     | Some idx -> idx
 
   /// Find the maximum length that can be updated for grey-box concolic testing.
@@ -130,10 +130,10 @@ module Seed =
     match direction with
     | Stay -> failwith "queryNeighborBytes() cannot be called with 'Stay'"
     | Right ->
-      let upperBound = min (byteVals.Length - 1) (byteCursor + MaxChunkLen)
+      let upperBound = min (byteVals.Length - 1) (byteCursor + MAX_CHUNK_LEN)
       Array.map ByteVal.getConcreteByte byteVals.[byteCursor + 1 .. upperBound]
     | Left ->
-      let lowerBound = max 0 (byteCursor - MaxChunkLen)
+      let lowerBound = max 0 (byteCursor - MAX_CHUNK_LEN)
       Array.map ByteVal.getConcreteByte byteVals.[lowerBound .. byteCursor - 1]
 
   (************************ Content update functions ************************)

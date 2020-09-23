@@ -4,22 +4,22 @@ open System.Threading
 open Utils
 open Options
 
-let private printFoundSeed verbosity seed newEdgeN =
-  let edgeStr = if newEdgeN > 0 then sprintf "(%d new edges) " newEdgeN else ""
+let private printFoundSeed verbosity seed =
   if verbosity >= 1 then
-    log "[*] Found by grey-box concolic %s: %s" edgeStr (Seed.toString seed)
+    log "[*] Found by grey-box concolic: %s" (Seed.toString seed)
   elif verbosity >= 0 then
-    log "[*] Found by grey-box concolic %s" edgeStr
+    log "[*] Found by grey-box concolic %s" (Seed.toString seed)
 
-let private evalSeed opt seed =
-  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig false
-  if newEdgeN > 0 then printFoundSeed opt.Verbosity seed newEdgeN
+let private coverageToPriority = function
+  | NoGain -> None
+  | NewPath -> Some Normal
+  | NewEdge -> Some Favored
+
+let private evalSeed opt seed exitSig covGain =
+  Manager.save opt seed exitSig covGain
+  if covGain = NewEdge then printFoundSeed opt.Verbosity seed
   let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
-  if isNewPath && not isAbnormal then
-    let priority = if newEdgeN > 0 then Favored else Normal
-    Some priority
-  else None
+  if isAbnormal then None else coverageToPriority covGain
 
 let private initializeSeeds opt =
   if opt.InputDir = "" then [Seed.make opt.FuzzSource]
@@ -29,11 +29,9 @@ let private initializeSeeds opt =
        |> List.map (Seed.makeWith opt.FuzzSource) // Create seed with content
 
 let private preprocessAux opt seed =
-  let newEdgeN, pathHash, edgeHash, exitSig = Executor.getCoverage opt seed
-  let isNewPath = Manager.save opt seed newEdgeN pathHash edgeHash exitSig true
-  if newEdgeN > 0 then Some (Favored, seed)
-  elif isNewPath then Some (Normal, seed)
-  else None
+  let exitSig, covGain = Executor.getCoverage opt seed
+  Manager.save opt seed exitSig covGain
+  Option.map (fun pr -> (pr, seed)) (coverageToPriority covGain)
 
 let private preprocess opt seeds =
   log "[*] Total %d initial seeds" (List.length seeds)
@@ -44,9 +42,9 @@ let private preprocess opt seeds =
   log "[*] %d initial items with low priority" normalCount
   items
 
-let private makeNewItems opt seeds =
-  let collector seed =
-    match evalSeed opt seed with
+let private relocateItems opt seeds =
+  let collector (seed, exitSig, covGain) =
+    match evalSeed opt seed exitSig covGain with
     | None -> []
     | Some pr -> List.map (fun s -> (pr, s)) (Seed.relocateCursor seed)
   List.collect collector seeds
@@ -64,12 +62,12 @@ let rec private fuzzLoop opt seedQueue =
     let priority, seed, seedQueue = SeedQueue.dequeue seedQueue
     if opt.Verbosity >= 1 then
       log "Grey-box concolic on %A seed : %s" priority (Seed.toString seed)
-    let newSeeds = GreyConcolic.run seed opt
+    let newItems = GreyConcolic.run seed opt
     // Move cursors of newly generated seeds.
-    let newItems = makeNewItems opt newSeeds
+    let relocatedItems = relocateItems opt newItems
     // Also generate seeds by just stepping the cursor of original seed.
     let steppedItems = makeSteppedItems priority seed
-    let seedQueue = List.fold SeedQueue.enqueue seedQueue newItems
+    let seedQueue = List.fold SeedQueue.enqueue seedQueue relocatedItems
     let seedQueue = List.fold SeedQueue.enqueue seedQueue steppedItems
     // Perform random fuzzing
     fuzzLoop opt seedQueue

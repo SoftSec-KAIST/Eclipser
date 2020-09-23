@@ -77,7 +77,7 @@ module BranchTree =
 
   let inferLinEq ctx brInfos =
     if checkValidTarget brInfos then
-      genComb brInfos BranchCombinationWindow 3 // XXX
+      genComb brInfos BRANCH_COMB_WINDOW 3 // XXX
       (* Now convert each [a,b,c] into (a,b,c) *)
       |> List.map (function [ a; b; c ] -> (a,b,c) | _ -> failwith "invalid")
       |> inferLinEqAux ctx
@@ -92,7 +92,7 @@ module BranchTree =
 
   let inferLinIneq ctx brInfos =
     if checkValidTarget brInfos then
-      genComb brInfos BranchCombinationWindow 3 // XXX
+      genComb brInfos BRANCH_COMB_WINDOW 3 // XXX
       (* Now convert each [a,b,c] into (a,b,c) *)
       |> List.map (function a::b::c::[] -> (a,b,c) | _ -> failwith "invalid")
       |> inferLinIneqAux ctx

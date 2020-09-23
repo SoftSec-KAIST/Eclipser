@@ -24,8 +24,8 @@
 #define TSL_FD (FORKSRV_FD - 1)
 
 extern abi_ulong chatkey_targ_addr;
-extern size_t chatkey_targ_index;
-extern abi_ulong mmap_next_start;
+extern uint32_t chatkey_targ_index;
+extern int measure_coverage;
 
 /* Set in the child process in forkserver mode: */
 
@@ -58,12 +58,10 @@ struct afl_tsl {
 /* Fork server logic, invoked once we hit _start. */
 
 static void afl_forkserver(CPUArchState *env) {
-
-  uint64_t tmp_input;
   static unsigned char tmp[4];
+  uint64_t tmp_input;
 
-  if (!getenv("CK_FEED_LOG"))
-      return;
+  if (atoi(getenv("CK_FORK_SERVER")) != 1) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
@@ -83,8 +81,8 @@ static void afl_forkserver(CPUArchState *env) {
 
     if (read(FORKSRV_FD, &tmp_input, 8) != 8) exit(2);
     chatkey_targ_addr = (abi_ulong)tmp_input;
-    if (read(FORKSRV_FD, &tmp_input, 8) != 8) exit(2);
-    chatkey_targ_index = (size_t)tmp_input;
+    if (read(FORKSRV_FD, &chatkey_targ_index, 4) != 4) exit(2);
+    if (read(FORKSRV_FD, &measure_coverage, 4) != 4) exit(2);
 
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */
@@ -161,8 +159,7 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
     if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
       break;
 
-    if (t.pc < mmap_next_start)
-        tb_find_slow(env, t.pc, t.cs_base, t.flags);
+    tb_find_slow(env, t.pc, t.cs_base, t.flags);
 
   }
 

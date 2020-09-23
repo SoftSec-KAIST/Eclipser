@@ -15,42 +15,40 @@ module GreySolver =
     | tryVal :: tailVals ->
       let tryStr = Array.append accStr [| byte tryVal |]
       let trySeed = Seed.fixCurBytes seed Right tryStr
-      let _, brInfoOpt = Executor.getBranchInfoAt opt trySeed tryVal targPt
-      match brInfoOpt with
-      | None -> // Failed to observe target point, proceed with the next tryVal
+      match Executor.getBranchInfoOnly opt trySeed tryVal targPt with
+      | None -> // Failed to observe target point, proceed with the next tryVal.
         findNextCharAux seed opt targPt accStr accBrInfos tailVals
       | Some brInfo ->
         let accBrInfos = accBrInfos @ [brInfo]
         let ctx = { Bytes = [| |]; ByteDir = Right }
         match BranchTree.inferLinEq ctx accBrInfos with
-        | None -> // No linear equation found yet, proceed with more brInfo
+        | None -> // No linear equation found yet, proceed with more brInfo.
           findNextCharAux seed opt targPt accStr accBrInfos tailVals
-        | Some linEq -> (* The solution of this equation is next character *)
+        | Some linEq -> // The solution of this equation is next character.
           match linEq.Solutions with
           | [] -> failwith "Linear equation w/ empty solution"
           | sol :: _ -> Some sol
 
-  let findNextChar seed opt targPt accStr =
+  let private findNextChar seed opt targPt accStr =
     let sampleVals = sampleInt 0I 255I opt.NSpawn
     findNextCharAux seed opt targPt accStr [] sampleVals
 
   let rec tryStrSol seed opt maxLen targPt accRes tryStr =
     let trySeed = Seed.fixCurBytes seed Right tryStr
     // Use dummy value as 'tryVal', since our interest is in branch distance.
-    match Executor.getBranchInfoAt opt trySeed 0I targPt with
-    | pathHash, Some brInfo when brInfo.Distance = 0I ->
-      if Manager.isNewPath pathHash
-      then (trySeed :: accRes)
-      else accRes
-    | _, Some _ -> // Non-zero branch distance, try next character.
-      if Array.length tryStr >= maxLen then accRes else
+    match Executor.getBranchInfo opt trySeed 0I targPt with
+    | exitSig, covGain, Some brInfo when brInfo.Distance = 0I ->
+      ((trySeed, exitSig, covGain) :: accRes)
+    | _, _, Some _ -> // Non-zero branch distance, try next character.
+      if Array.length tryStr >= maxLen then accRes
+      else
         let nextCharOpt = findNextChar seed opt targPt tryStr
         match nextCharOpt with
         | None -> accRes
         | Some nextChar ->
           let tryStr = Array.append tryStr [| byte nextChar |]
           tryStrSol seed opt maxLen targPt accRes tryStr
-    | _, None -> accRes // Target point disappeared, halt.
+    | _, _, None -> accRes // Target point disappeared, halt.
 
   let solveAsString seed opt targPt linEq accRes =
     let initStrs = List.map (bigIntToBytes BE 1) linEq.Solutions
@@ -68,14 +66,12 @@ module GreySolver =
       let tryBytes = bigIntToBytes endian size sol
       let trySeed = Seed.fixCurBytes seed dir tryBytes
       // Use dummy value as 'tryVal', since our interest is branch distance.
-      match Executor.getBranchInfoAt opt trySeed 0I targPt with
-      | pathHash, Some brInfo when brInfo.Distance = 0I ->
+      match Executor.getBranchInfo opt trySeed 0I targPt with
+      | exitSig, covGain, Some brInfo when brInfo.Distance = 0I ->
         ignore (solutionCache.Add(sol))
-        if Manager.isNewPath pathHash
-        then trySeed :: accRes
-        else accRes
-      | _, Some _ -> accRes // Non-zero branch distance, failed.
-      | _, None -> accRes // Target point disappeared, halt.
+        (trySeed, exitSig, covGain) :: accRes
+      | _, _, Some _ -> accRes // Non-zero branch distance, failed.
+      | _, _, None -> accRes // Target point disappeared, failed.
 
   let solveAsChunk seed opt dir targPt linEq accRes =
     let sols = linEq.Solutions
@@ -87,12 +83,6 @@ module GreySolver =
     if linEq.ChunkSize = 1
     then solveAsString seed opt targPt linEq accRes
     else solveAsChunk seed opt dir targPt linEq accRes
-
-  let solveEquations seed opt dir linEqs =
-    let solveN = opt.NSolve / 3
-    let linEqsChosen = randomSelect linEqs solveN
-    List.fold (solveEquation seed opt dir) [] linEqsChosen
-    |> List.rev // To preserve original order
 
   (* Functions related to binary search on monotonic function *)
 
@@ -112,19 +102,17 @@ module GreySolver =
     let endian = if dir = Left then LE else BE
     let tryBytes = bigIntToBytes endian mono.ByteLen tryVal
     let trySeed = Seed.fixCurBytes seed dir tryBytes
-    match Executor.getBranchInfoAt opt trySeed tryVal targPt with
-    | _, None -> accRes // Target point disappeared, halt.
-    | pathHash, Some brInfo when brInfo.Distance = 0I ->
-      if Manager.isNewPath pathHash
-      then trySeed :: accRes
-      else accRes
-    | _, Some brInfo -> // Caution : In this case, pathHash is incorrect
+    match Executor.getBranchInfo opt trySeed tryVal targPt with
+    | exitSig, covGain, Some brInfo when brInfo.Distance = 0I ->
+      (trySeed, exitSig, covGain) :: accRes
+    | _, _, Some brInfo ->
       let newY = getFunctionValue mono brInfo
       (* TODO : check monotonicity violation, too. *)
       let newMono = Monotonicity.update mono tryVal newY
       if newMono.ByteLen <= maxLen then
         binarySearch seed opt dir maxLen targPt accRes newMono
       else accRes
+    | _, _, None -> accRes // Target point disappeared, halt.
 
   let solveMonotonic seed opt accRes (targPt, mono) =
     let maxLenR = Seed.queryUpdateBound seed Right
@@ -133,12 +121,6 @@ module GreySolver =
     let res = binarySearch seed opt Right maxLenR targPt [] mono
     if not (List.isEmpty res) then res @ accRes
     else binarySearch seed opt Left maxLenL targPt accRes mono
-
-  let solveMonotonics seed opt monotonics =
-    let solveN = opt.NSolve / 3
-    let monosChosen = randomSelect monotonics solveN
-    List.fold (solveMonotonic seed opt) [] monosChosen
-    |> List.rev // To preserve original order
 
   (* Functions related to solving linear inequalities *)
 
@@ -187,16 +169,16 @@ module GreySolver =
     let tryBytes = bigIntToBytes endian size sol
     let trySeed = Seed.fixCurBytes seed dir tryBytes
     // Use dummy value as 'tryVal', since our interest is in branch distance.
-    match Executor.getBranchInfoAt opt trySeed 0I targPt with
-    | _, Some brInfo when brInfo.Distance = 0I ->
+    match Executor.getBranchInfoOnly opt trySeed 0I targPt with
+    | Some brInfo when brInfo.Distance = 0I ->
       let tryBytes' = bigIntToBytes endian size (sol - 1I)
       let trySeed' = Seed.fixCurBytes seed dir tryBytes'
-      match Executor.getBranchInfoAt opt trySeed' 0I targPt with
-      | _, Some brInfo' ->
+      match Executor.getBranchInfoOnly opt trySeed' 0I targPt with
+      | Some brInfo' ->
         let sign = if brInfo'.Distance > 0I then Positive else Negative
         (sol, sign) :: accRes
-      | _ -> accRes
-    | _, _ -> accRes
+      | None -> accRes
+    | _ -> accRes
 
   let checkSolution seed opt dir equation targPt =
     let solutions = equation.Solutions
@@ -211,8 +193,8 @@ module GreySolver =
     let tryBytes2 = bigIntToBytes endian size sol2
     let trySeed2 = Seed.fixCurBytes seed dir tryBytes2
     // Use dummy value as 'tryVal', since our interest is in branch distance.
-    let _, brInfoOpt1 = Executor.getBranchInfoAt opt trySeed1 0I targPt
-    let _, brInfoOpt2 = Executor.getBranchInfoAt opt trySeed2 0I targPt
+    let brInfoOpt1 = Executor.getBranchInfoOnly opt trySeed1 0I targPt
+    let brInfoOpt2 = Executor.getBranchInfoOnly opt trySeed2 0I targPt
     match brInfoOpt1, brInfoOpt2 with
     | Some brInfo1, Some brInfo2 ->
       if sameSign brInfo1.Distance brInfo2.Distance
@@ -299,14 +281,16 @@ module GreySolver =
     let cond, branchPoint = branchCond
     match cond with
     | LinEq linEq ->
-      let seeds = solveEquation seed opt dir [] (branchPoint, linEq)
-      (pc, seeds)
+      let items = solveEquation seed opt dir [] (branchPoint, linEq)
+      (pc, items)
     | Mono mono ->
-      let seeds = solveMonotonic seed opt [] (branchPoint, mono)
-      (pc, seeds)
+      let items = solveMonotonic seed opt [] (branchPoint, mono)
+      (pc, items)
     | LinIneq ineq ->
       let pc, seeds = solveInequality seed opt dir pc distSign branchPoint ineq
-      (pc, seeds)
+      let sigs, covs = List.map (Executor.getCoverage opt) seeds |> List.unzip
+      let items = List.zip3 seeds sigs covs
+      (pc, items)
 
   let solveBranchSeq seed opt dir pc branchSeq =
     List.fold (fun (accPc, accSeeds) branch ->
@@ -319,7 +303,10 @@ module GreySolver =
     | Straight branchSeq ->
       let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
       let terminalSeeds = encodeCondition seed opt dir pc
-      newSeeds @ terminalSeeds
+      let results = List.map (Executor.getCoverage opt) terminalSeeds
+      let sigs, covs = List.unzip results
+      let terminalItems = List.zip3 terminalSeeds sigs covs
+      newSeeds @ terminalItems
     | ForkedTree (branchSeq, (LinIneq ineq, branchPt), childs) ->
       let pc, newSeeds = solveBranchSeq seed opt dir pc branchSeq
       let condP, condN = extractCond seed opt dir ineq branchPt

@@ -7,7 +7,7 @@
 +/* A variable introduced in chatkey.c, to decide whether we should start
 + * instrumentation.
 + */
-+extern bool chatkey_EP_passed;
++extern int chatkey_EP_passed;
 +extern abi_ulong chatkey_curr_addr;
 +extern abi_ulong chatkey_targ_addr;
 +
