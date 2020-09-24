@@ -16,7 +16,7 @@ let private coverageToPriority = function
   | NewEdge -> Some Favored
 
 let private evalSeed opt seed exitSig covGain =
-  Manager.save opt seed exitSig covGain
+  TestCase.save opt seed exitSig covGain
   if covGain = NewEdge then printFoundSeed opt.Verbosity seed
   let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
   if isAbnormal then None else coverageToPriority covGain
@@ -30,19 +30,14 @@ let private initializeSeeds opt =
 
 let private preprocessAux opt seed =
   let exitSig, covGain = Executor.getCoverage opt seed
-  Manager.save opt seed exitSig covGain
+  TestCase.save opt seed exitSig covGain
   Option.map (fun pr -> (pr, seed)) (coverageToPriority covGain)
 
 let private preprocess opt seeds =
   log "[*] Total %d initial seeds" (List.length seeds)
-  let items = List.choose (preprocessAux opt) seeds
-  let favoredCount = List.filter (fst >> (=) Favored) items |> List.length
-  let normalCount = List.filter (fst >> (=) Normal) items |> List.length
-  log "[*] %d initial items with high priority" favoredCount
-  log "[*] %d initial items with low priority" normalCount
-  items
+  List.choose (preprocessAux opt) seeds
 
-let private relocateItems opt seeds =
+let private makeRelocatedItems opt seeds =
   let collector (seed, exitSig, covGain) =
     match evalSeed opt seed exitSig covGain with
     | None -> []
@@ -63,13 +58,13 @@ let rec private fuzzLoop opt seedQueue =
     if opt.Verbosity >= 1 then
       log "Grey-box concolic on %A seed : %s" priority (Seed.toString seed)
     let newItems = GreyConcolic.run seed opt
-    // Move cursors of newly generated seeds.
-    let relocatedItems = relocateItems opt newItems
-    // Also generate seeds by just stepping the cursor of original seed.
+    // Relocate the cursors of newly generated seeds.
+    let relocatedItems = makeRelocatedItems opt newItems
+    // Also generate seeds by just stepping the cursor of the original seed.
     let steppedItems = makeSteppedItems priority seed
+    // Add the new items to the seed queue.
     let seedQueue = List.fold SeedQueue.enqueue seedQueue relocatedItems
     let seedQueue = List.fold SeedQueue.enqueue seedQueue steppedItems
-    // Perform random fuzzing
     fuzzLoop opt seedQueue
 
 let private fuzzingTimer timeoutSec = async {
@@ -77,7 +72,7 @@ let private fuzzingTimer timeoutSec = async {
   System.Threading.Thread.Sleep(timespan )
   printLine "Fuzzing timeout expired."
   log "===== Statistics ====="
-  Manager.printStatistics ()
+  TestCase.printStatistics ()
   log "Done, clean up and exit..."
   Executor.cleanup ()
   exit (0)
@@ -91,7 +86,7 @@ let main args =
   log "[*] Fuzz target : %s" opt.TargetProg
   log "[*] Time limit : %d sec" opt.Timelimit
   createDirectoryIfNotExists opt.OutDir
-  Manager.initialize opt.OutDir
+  TestCase.initialize opt.OutDir
   Executor.initialize opt
   let emptyQueue = SeedQueue.initialize ()
   let initialSeeds = initializeSeeds opt

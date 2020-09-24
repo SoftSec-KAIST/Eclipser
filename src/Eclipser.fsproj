@@ -23,7 +23,7 @@
     <Compile Include="GreyConcolic/PathConstraint.fs" />
     <Compile Include="GreyConcolic/Solve.fs" />
     <Compile Include="GreyConcolic/GreyConcolic.fs" />
-    <Compile Include="Fuzz/Manager.fs" />
+    <Compile Include="Fuzz/TestCase.fs" />
     <Compile Include="Fuzz/SeedQueue.fs" />
     <Compile Include="Fuzz/Fuzz.fs" />
   </ItemGroup>

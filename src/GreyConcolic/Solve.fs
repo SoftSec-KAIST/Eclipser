@@ -107,7 +107,7 @@ module GreySolver =
       (trySeed, exitSig, covGain) :: accRes
     | _, _, Some brInfo ->
       let newY = getFunctionValue mono brInfo
-      (* TODO : check monotonicity violation, too. *)
+      // TODO : check monotonicity violation, too.
       let newMono = Monotonicity.update mono tryVal newY
       if newMono.ByteLen <= maxLen then
         binarySearch seed opt dir maxLen targPt accRes newMono

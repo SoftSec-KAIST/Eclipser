@@ -1,6 +1,5 @@
-module Eclipser.Manager
+module Eclipser.TestCase
 
-open System.Collections.Generic
 open Utils
 open Options
 
@@ -22,17 +21,10 @@ let mutable private illegalInstrCount = 0
 let mutable private fpErrorCount = 0
 let mutable private abortCount = 0
 let mutable private crashCount = 0
-let mutable private argTestCaseCount = 0
-let mutable private stdinTestCaseCount = 0
-let mutable private fileTestCaseCount = 0
 let mutable private testCaseCount = 0
 
 let printStatistics () =
   log "Testcases : %d" testCaseCount
-  log "Input vector of test cases"
-  log "  Argument : %d" argTestCaseCount
-  log "  Stdin : %d" stdinTestCaseCount
-  log "  File : %d" fileTestCaseCount
   log "Crashes : %d" crashCount
   log "  Segfault : %d" segfaultCount
   log "  Illegal instruction : %d" illegalInstrCount
