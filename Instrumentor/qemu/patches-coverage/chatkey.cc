@@ -26,13 +26,13 @@ static char * coverage_path = NULL;
 static char * dbg_path = NULL;
 static FILE * coverage_fp = NULL;
 static FILE * dbg_fp = NULL;
-static unsigned char * accum_edge_bitmap;
+static unsigned char * edge_bitmap = NULL;
 
 extern "C" void chatkey_setup_before_forkserver(void) {
   char * bitmap_path = getenv("CK_BITMAP_LOG");
   int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
-  accum_edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
-  assert(accum_edge_bitmap != (void *) -1);
+  edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
+  assert(edge_bitmap != (void *) -1);
 
   coverage_path = getenv("CK_COVERAGE_LOG");
   dbg_path = getenv("CK_DBG_LOG");
@@ -90,6 +90,11 @@ extern "C" void chatkey_exit(void) {
     fclose(dbg_fp);
     dbg_fp = NULL;
   }
+
+  if (edge_bitmap) {
+    munmap(edge_bitmap, 0x10000);
+    edge_bitmap = NULL;
+  }
 }
 
 extern "C" void chatkey_log_bb(abi_ulong addr) {
@@ -97,7 +102,7 @@ extern "C" void chatkey_log_bb(abi_ulong addr) {
   unsigned int byte_idx, byte_mask;
   unsigned char old_byte, new_byte;
 
-  if (!coverage_fp)
+  if (!coverage_fp || !edge_bitmap)
     return;
 
 #ifdef TARGET_X86_64
@@ -111,11 +116,11 @@ extern "C" void chatkey_log_bb(abi_ulong addr) {
   hash = (edge >> 4) ^ (edge << 8);
   byte_idx = (hash >> 3) & 0xffff;
   byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
-  old_byte = accum_edge_bitmap[byte_idx];
+  old_byte = edge_bitmap[byte_idx];
   new_byte = old_byte | byte_mask;
   if (old_byte != new_byte) {
     found_new_edge = 1;
-    accum_edge_bitmap[byte_idx] = new_byte;
+    edge_bitmap[byte_idx] = new_byte;
     /* Log visited addrs if dbg_fp is not NULL */
     if (dbg_fp) {
 #ifdef TARGET_X86_64
