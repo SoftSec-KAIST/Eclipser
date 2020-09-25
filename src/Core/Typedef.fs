@@ -24,6 +24,14 @@ type CoverageGain =
 /// 'Normal' priority.
 type Priority = Favored | Normal
 
+module Priority =
+
+  let ofCoverageGain = function
+  | NoGain -> None
+  | NewPath -> Some Normal
+  | NewEdge -> Some Favored
+
+
 /// Architecture of target program to fuzz.
 type Arch = X86 | X64
 

@@ -5,38 +5,40 @@ open Utils
 open Config
 
 type FuzzerCLI =
-  | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
   | [<AltCommandLine("-v")>] [<Unique>] Verbose of int
   | [<AltCommandLine("-t")>] [<Mandatory>] [<Unique>] Timelimit of sec: int
   | [<AltCommandLine("-o")>] [<Mandatory>] [<Unique>] OutputDir of path: string
-  // Options related to seed initialization
-  | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
-  | [<Unique>] Arg of string
-  | [<AltCommandLine("-f")>] [<Unique>] Filepath of string
-  // Options related to execution of program
+  | [<AltCommandLine("-s")>] [<Unique>] SyncDir of path: string
+  // Options related to program execution.
+  | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
   | [<Unique>] ExecTimeout of millisec:uint64
   | [<Unique>] UsePty
   | [<Unique>] Architecture of string
-  // Options related to fuzzing process
+  // Options related to seed.
+  | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
+  | [<Unique>] Arg of string
+  | [<AltCommandLine("-f")>] [<Unique>] Filepath of string
+  // Options related to grey-box concolic testing technique.
   | [<Unique>] NSolve of int
   | [<Unique>] NSpawn of int
 with
   interface IArgParserTemplate with
     member s.Usage =
       match s with
-      | Program _ -> "Target program for test case generation with fuzzing."
       | Verbose _ -> "Verbosity level to control debug messages (default:0)."
       | Timelimit _ -> "Timeout for fuzz testing (in seconds)."
       | OutputDir _ -> "Directory to store testcase outputs."
-      | InputDir _ -> "Directory containing initial seeds."
-      // Options related to seed initialization
-      | Arg _ -> "Command-line argument of program under test."
-      | Filepath _ -> "File input's (fixed) path"
-      // Options related to execution of program
+      | SyncDir _ -> "Directory shared with AFL instances"
+      // Options related to program execution.
+      | Program _ -> "Target program for test case generation with fuzzing."
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default:500)"
       | UsePty _ -> "Use pseudo tty for standard input"
       | Architecture _ -> "Target program architecture (X86|X64) (default:X64)"
-      // Options related to test case generation
+      // Options related to seed.
+      | InputDir _ -> "Directory containing initial seeds."
+      | Arg _ -> "Command-line argument of program under test."
+      | Filepath _ -> "File input's (fixed) path"
+      // Options related to grey-box concolic testing technique.
       | NSolve _ -> "Number of branches to flip in grey-box concolic testing " +
                     "when an execution path is given. 'N_solve' parameter in " +
                     "the paper."
@@ -45,18 +47,19 @@ with
 
 type FuzzOption = {
   Verbosity         : int
-  OutDir            : string
   Timelimit         : int
-  // Options related to program execution
+  OutDir            : string
+  SyncDir           : string
+  // Options related to program execution.
   TargetProg        : string
   ExecTimeout       : uint64
   UsePty            : bool
   Architecture      : Arch
-  // Options related to seed
-  FuzzSource        : InputSource
+  // Options related to seed.
   InputDir          : string
   Arg               : string
-  // Options related to test case generation
+  FuzzSource        : InputSource
+  // Options related to grey-box concolic testing technique.
   NSolve            : int
   NSpawn            : int
 }
@@ -67,20 +70,21 @@ let parseFuzzOption (args: string array) =
   let r = try parser.Parse(args) with
           :? Argu.ArguParseException -> printLine (parser.PrintUsage()); exit 1
   { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 0)
-    OutDir = r.GetResult (<@ OutputDir @>)
     Timelimit = r.GetResult (<@ Timelimit @>)
-    // Options related to program execution
+    OutDir = r.GetResult (<@ OutputDir @>)
+    SyncDir = r.GetResult (<@ SyncDir @>, defaultValue = "")
+    // Options related to program execution.
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
     ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DEF_EXEC_TO)
     UsePty = r.Contains (<@ UsePty @>)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString
-    // Options related to seed
-    FuzzSource = if not (r.Contains(<@ Filepath @>)) then StdInput
-                 else FileInput (r.GetResult (<@ Filepath @>))
+    // Options related to seed.
     InputDir = r.GetResult(<@ InputDir @>, defaultValue = "")
     Arg = r.GetResult (<@ Arg @>, defaultValue = "")
-    // Options related to test case generation
+    FuzzSource = if not (r.Contains(<@ Filepath @>)) then StdInput
+                 else FileInput (r.GetResult (<@ Filepath @>))
+    // Options related to grey-box concolic testing technique.
     NSolve = r.GetResult(<@ NSolve @>, defaultValue = 600)
     NSpawn = r.GetResult(<@ NSpawn @>, defaultValue = 10) }
 

@@ -10,16 +10,11 @@ let private printFoundSeed verbosity seed =
   elif verbosity >= 0 then
     log "[*] Found by grey-box concolic %s" (Seed.toString seed)
 
-let private coverageToPriority = function
-  | NoGain -> None
-  | NewPath -> Some Normal
-  | NewEdge -> Some Favored
-
 let private evalSeed opt seed exitSig covGain =
   TestCase.save opt seed exitSig covGain
   if covGain = NewEdge then printFoundSeed opt.Verbosity seed
   let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
-  if isAbnormal then None else coverageToPriority covGain
+  if isAbnormal then None else Priority.ofCoverageGain covGain
 
 let private initializeSeeds opt =
   if opt.InputDir = "" then [Seed.make opt.FuzzSource]
@@ -28,14 +23,10 @@ let private initializeSeeds opt =
        |> List.map System.IO.File.ReadAllBytes // Read in file contents
        |> List.map (Seed.makeWith opt.FuzzSource) // Create seed with content
 
-let private preprocessAux opt seed =
+let private makeInitialItems opt seed =
   let exitSig, covGain = Executor.getCoverage opt seed
   TestCase.save opt seed exitSig covGain
-  Option.map (fun pr -> (pr, seed)) (coverageToPriority covGain)
-
-let private preprocess opt seeds =
-  log "[*] Total %d initial seeds" (List.length seeds)
-  List.choose (preprocessAux opt) seeds
+  Option.map (fun pr -> (pr, seed)) (Priority.ofCoverageGain covGain)
 
 let private makeRelocatedItems opt seeds =
   let collector (seed, exitSig, covGain) =
@@ -49,14 +40,21 @@ let private makeSteppedItems pr seed =
   | None -> []
   | Some s -> [(pr, s)]
 
-let rec private fuzzLoop opt seedQueue =
+let syncWithAFL opt seedQueue n =
+  // Sychronize the seed queue with AFL instances every ten iterations.
+  if n % 10 = 0 && opt.SyncDir <> "" then Sync.run opt seedQueue
+  else seedQueue
+
+let rec private fuzzLoop opt seedQueue n =
+  let verbosity = opt.Verbosity
+  let seedQueue = syncWithAFL opt seedQueue n
   if SeedQueue.isEmpty seedQueue then
-    Thread.Sleep(5000)
-    fuzzLoop opt seedQueue
+    if n % 10 = 0 && verbosity >= 1 then log "Seed queue empty, waiting..."
+    Thread.Sleep(1000)
+    fuzzLoop opt seedQueue (n + 1)
   else
     let priority, seed, seedQueue = SeedQueue.dequeue seedQueue
-    if opt.Verbosity >= 1 then
-      log "Grey-box concolic on %A seed : %s" priority (Seed.toString seed)
+    if verbosity >= 1 then log "Fuzzing with: %s" (Seed.toString seed)
     let newItems = GreyConcolic.run seed opt
     // Relocate the cursors of newly generated seeds.
     let relocatedItems = makeRelocatedItems opt newItems
@@ -65,7 +63,7 @@ let rec private fuzzLoop opt seedQueue =
     // Add the new items to the seed queue.
     let seedQueue = List.fold SeedQueue.enqueue seedQueue relocatedItems
     let seedQueue = List.fold SeedQueue.enqueue seedQueue steppedItems
-    fuzzLoop opt seedQueue
+    fuzzLoop opt seedQueue (n + 1)
 
 let private fuzzingTimer timeoutSec = async {
   let timespan = System.TimeSpan(0, 0, 0, timeoutSec)
@@ -90,9 +88,10 @@ let main args =
   Executor.initialize opt
   let emptyQueue = SeedQueue.initialize ()
   let initialSeeds = initializeSeeds opt
-  let initItems = preprocess opt initialSeeds
+  log "[*] Total %d initial seeds" (List.length initialSeeds)
+  let initItems = List.choose (makeInitialItems opt) initialSeeds
   let initQueue = List.fold SeedQueue.enqueue emptyQueue initItems
-  log "[*] Fuzzing starts"
+  log "[*] Start fuzzing"
   Async.Start (fuzzingTimer opt.Timelimit)
-  fuzzLoop opt initQueue
+  fuzzLoop opt initQueue 0
   0 // Unreachable

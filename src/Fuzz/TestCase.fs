@@ -47,13 +47,13 @@ let private updateTestcaseCount () =
 
 let private dumpCrash opt seed exitSig =
   if opt.Verbosity >= 0 then log "Save crash seed : %s" (Seed.toString seed)
-  let crashName = sprintf "crash-%05d" crashCount
+  let crashName = sprintf "id:%06d" crashCount
   let crashPath = System.IO.Path.Combine(crashDir, crashName)
   System.IO.File.WriteAllBytes(crashPath, Seed.concretize seed)
   updateCrashCount exitSig
 
 let private dumpTestCase seed =
-  let tcName = sprintf "tc-%05d" testCaseCount
+  let tcName = sprintf "id:%06d" testCaseCount
   let tcPath = System.IO.Path.Combine(testcaseDir, tcName)
   System.IO.File.WriteAllBytes(tcPath, Seed.concretize seed)
   updateTestcaseCount ()
