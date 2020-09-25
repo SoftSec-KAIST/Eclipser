@@ -6,7 +6,11 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#include "tcg.h"
+#include "qemu/osdep.h"
+#include "qemu-common.h"
+#include "exec/cpu-common.h"
+#include "tcg/tcg.h"
+
 
 #ifdef TARGET_X86_64
 typedef uint64_t abi_ulong;
@@ -20,6 +24,15 @@ extern unsigned int afl_forksrv_pid;
 
 #define MAX_TRACE_LEN (1000000)
 
+
+void flush_trace_buffer(void);
+void chatkey_setup_before_forkserver(void);
+void chatkey_setup_after_forkserver(void);
+void chatkey_close_fp(void);
+void chatkey_exit(void);
+void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type);
+void chatkey_log_bb(abi_ulong addr);
+
 abi_ulong chatkey_entry_point = 0; /* ELF entry point (_start) */
 abi_ulong chatkey_curr_addr = 0;
 abi_ulong chatkey_targ_addr = 0;
@@ -29,7 +42,7 @@ int chatkey_EP_passed = 0;
 
 static int found_new_edge = 0;
 static int found_new_path = 0; // TODO. Extend to measure path coverage, too.
-static abi_ulong prev_node = 0;
+static abi_ulong prev_addr = 0;
 static char * coverage_path = NULL;
 static char * branch_path = NULL;
 static FILE * coverage_fp = NULL;
@@ -93,6 +106,11 @@ void chatkey_close_fp(void) {
 
   if (afl_forksrv_pid)
     close(TSL_FD);
+
+  if (edge_bitmap) {
+    munmap(edge_bitmap, 0x10000);
+    edge_bitmap = NULL;
+  }
 }
 
 void chatkey_exit(void) {
@@ -188,7 +206,7 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
       }
 #endif
       else {
-        assert(false);
+        assert(0);
       }
 
       type = compare_type | operand_size;
@@ -245,7 +263,7 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
     }
 #endif
     else {
-      assert(false);
+      assert(0);
     }
 
     type = compare_type | operand_size;
@@ -263,21 +281,25 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
 }
 
 void chatkey_log_bb(abi_ulong addr) {
+  abi_ulong prev_addr_local;
   abi_ulong edge, hash;
   unsigned int byte_idx, byte_mask;
   unsigned char old_byte, new_byte;
 
+  // Make sure that 'chatkey_curr_addr' and 'prev_addr' are always updated even
+  // if we just return.
   chatkey_curr_addr = addr;
+  prev_addr_local = prev_addr;
+  prev_addr = addr;
 
   if (!coverage_fp || !edge_bitmap)
     return;
 
 #ifdef TARGET_X86_64
-  edge = (prev_node << 16) ^ addr;
+  edge = (prev_addr_local << 16) ^ addr;
 #else
-  edge = (prev_node << 8) ^ addr;
+  edge = (prev_addr_local << 8) ^ addr;
 #endif
-  prev_node = addr;
 
   // Update bitmap.
   hash = (edge >> 4) ^ (edge << 8);

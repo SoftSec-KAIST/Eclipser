@@ -4,7 +4,7 @@
 #
 # Modified codes from AFL's QEMU mode (original license below).
 # --------------------------------------
-#
+
 # Written by Andrew Griffiths <agriffiths@google.com> and
 #            Michal Zalewski <lcamtuf@google.com>
 #
@@ -16,8 +16,9 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 
-QEMU_URL="https://download.qemu.org/qemu-2.3.0.tar.bz2"
-QEMU_SHA384="7a0f0c900f7e2048463cc32ff3e904965ab466c8428847400a0f2dcfe458108a68012c4fddb2a7e7c822b4fd1a49639b"
+VERSION="2.10.0"
+QEMU_URL="https://download.qemu.org/qemu-${VERSION}.tar.bz2"
+QEMU_SHA384="9496d1d209d3a49d67dd83fbcf3f2bf376b7d5f500b0247d813639d104effa79d8a39e64f94d6f9541f6e9d8e3cc574f"
 
 echo "========================================="
 echo "Chatkey instrumentation QEMU build script"
@@ -33,7 +34,7 @@ if [ ! "`uname -s`" = "Linux" ]; then
 
 fi
 
-if [ ! -f "patches-coverage/chatkey.cc" -o ! -f "patches-branch/chatkey.c" ]; then
+if [ ! -f "patches-coverage/chatkey.c" -o ! -f "patches-branch/chatkey.c" ]; then
 
   echo "[-] Error: key files not found - wrong working directory?"
   exit 1
@@ -68,7 +69,7 @@ CKSUM=`sha384sum -- "$ARCHIVE" 2>/dev/null | cut -d' ' -f1`
 
 if [ ! "$CKSUM" = "$QEMU_SHA384" ]; then
 
-  echo "[*] Downloading QEMU 2.3.0 from the web..."
+  echo "[*] Downloading QEMU from the web..."
   rm -f "$ARCHIVE"
   wget -O "$ARCHIVE" -- "$QEMU_URL" || exit 1
 
@@ -87,96 +88,86 @@ else
 
 fi
 
-echo "[*] Uncompressing archive (this will take a while)..."
+echo "[*] Clean up directories..."
 
-rm -rf "qemu-2.3.0" || exit 1
-rm -rf "qemu-2.3.0-coverage" || exit 1
-rm -rf "qemu-2.3.0-branch" || exit 1
-rm -rf "qemu-2.3.0-bbcount" || exit 1
-rm -rf "qemu-2.3.0-coverage-x86" || exit 1
-rm -rf "qemu-2.3.0-coverage-x64" || exit 1
-rm -rf "qemu-2.3.0-branch-x86" || exit 1
-rm -rf "qemu-2.3.0-branch-x64" || exit 1
-rm -rf "qemu-2.3.0-bbcount-x86" || exit 1
-rm -rf "qemu-2.3.0-bbcount-x64" || exit 1
+rm -rf "qemu-${VERSION}" || exit 1
+rm -rf "qemu-${VERSION}-coverage" || exit 1
+rm -rf "qemu-${VERSION}-branch" || exit 1
+rm -rf "qemu-${VERSION}-bbcount" || exit 1
+rm -rf "qemu-${VERSION}-coverage-x86" || exit 1
+rm -rf "qemu-${VERSION}-coverage-x64" || exit 1
+rm -rf "qemu-${VERSION}-branch-x86" || exit 1
+rm -rf "qemu-${VERSION}-branch-x64" || exit 1
+rm -rf "qemu-${VERSION}-bbcount-x86" || exit 1
+rm -rf "qemu-${VERSION}-bbcount-x64" || exit 1
+
+echo "[*] Uncompressing archive..."
+
 tar xf "$ARCHIVE" || exit 1
 
 echo "[+] Unpacking successful."
 
 echo "[*] Backup target files of patches-common/ (for later use)"
-cp qemu-2.3.0/linux-user/elfload.c qemu-2.3.0/linux-user/elfload.c.orig
-cp qemu-2.3.0/linux-user/linuxload.c qemu-2.3.0/linux-user/linuxload.c.orig
-cp qemu-2.3.0/linux-user/signal.c qemu-2.3.0/linux-user/signal.c.orig
-cp qemu-2.3.0/translate-all.c qemu-2.3.0/translate-all.c.orig
-cp qemu-2.3.0/scripts/texi2pod.pl qemu-2.3.0/scripts/texi2pod.pl.orig
-cp qemu-2.3.0/user-exec.c qemu-2.3.0/user-exec.c.orig
-cp qemu-2.3.0/configure qemu-2.3.0/configure.orig
-cp qemu-2.3.0/include/sysemu/os-posix.h qemu-2.3.0/include/sysemu/os-posix.h.orig
+cp qemu-${VERSION}/configure qemu-${VERSION}/configure.orig
+cp qemu-${VERSION}/linux-user/elfload.c qemu-${VERSION}/linux-user/elfload.c.orig
+cp qemu-${VERSION}/util/memfd.c qemu-${VERSION}/util/memfd.c.orig
+cp qemu-${VERSION}/linux-user/signal.c qemu-${VERSION}/linux-user/signal.c.orig
 
 echo "[*] Applying common patches..."
-patch -p0 <patches-common/elfload.diff || exit 1
-patch -p0 <patches-common/linuxload.diff || exit 1
-patch -p0 <patches-common/signal.diff || exit 1
-patch -p0 <patches-common/translate-all.diff || exit 1
-patch -p0 <patches-common/texi2pod.diff || exit 1
-patch -p0 <patches-common/user-exec.diff || exit 1
-patch -p0 <patches-common/os-posix.diff || exit 1
 patch -p0 <patches-common/configure.diff || exit 1
+patch -p0 <patches-common/elfload.diff || exit 1
+patch -p0 <patches-common/memfd.diff || exit 1
+patch -p0 <patches-common/signal.diff || exit 1
 
-cp -r "qemu-2.3.0" "qemu-2.3.0-coverage"
-cp -r "qemu-2.3.0" "qemu-2.3.0-branch"
-cp -r "qemu-2.3.0" "qemu-2.3.0-bbcount"
+cp -r "qemu-${VERSION}" "qemu-${VERSION}-coverage"
+cp -r "qemu-${VERSION}" "qemu-${VERSION}-branch"
+cp -r "qemu-${VERSION}" "qemu-${VERSION}-bbcount"
 
 ### Patch for coverage tracer
 
 echo "[*] Applying patches for coverage..."
 
-patch -p0 <patches-coverage/syscall.diff || exit 1
+cp patches-coverage/afl-qemu-cpu-inl.h qemu-${VERSION}-coverage/accel/tcg/
+cp patches-coverage/chatkey.c qemu-${VERSION}-coverage/accel/tcg/
 patch -p0 <patches-coverage/cpu-exec.diff || exit 1
-patch -p0 <patches-coverage/exec-all.diff || exit 1
-patch -p0 <patches-coverage/translate.diff || exit 1
-patch -p0 <patches-coverage/makefile-target.diff || exit 1
-cp patches-coverage/chatkey.cc qemu-2.3.0-coverage/
-cp patches-coverage/afl-qemu-cpu-inl.h qemu-2.3.0-coverage/
-cp patches-coverage/chatkey-utils.h qemu-2.3.0-coverage/
+patch -p0 <patches-coverage/makefile-objs.diff || exit 1
+patch -p0 <patches-coverage/syscall.diff || exit 1
 
 echo "[+] Patching done."
+
+cp -r "qemu-${VERSION}-coverage" "qemu-${VERSION}-coverage-x86"
+mv "qemu-${VERSION}-coverage" "qemu-${VERSION}-coverage-x64"
 
 ### Patch for branch tracer
 
 echo "[*] Applying patches for branch..."
 
+cp patches-branch/afl-qemu-cpu-inl.h qemu-${VERSION}-branch/
+cp patches-branch/chatkey.c qemu-${VERSION}-branch/tcg/
 patch -p0 <patches-branch/cpu-exec.diff || exit 1
-patch -p0 <patches-branch/syscall.diff || exit 1
 patch -p0 <patches-branch/makefile-target.diff || exit 1
-patch -p0 <patches-branch/translate.diff || exit 1
-patch -p0 <patches-branch/tcg-target.diff || exit 1
+patch -p0 <patches-branch/syscall.diff || exit 1
+
+patch -p0 <patches-branch/optimize.diff || exit 1
 patch -p0 <patches-branch/tcg-op.diff || exit 1
 patch -p0 <patches-branch/tcg-opc.diff || exit 1
-patch -p0 <patches-branch/tcg.diff || exit 1
-patch -p0 <patches-branch/optimize.diff || exit 1
-cp patches-branch/chatkey.c qemu-2.3.0-branch/tcg/
-cp patches-branch/afl-qemu-cpu-inl.h qemu-2.3.0-branch/
+patch -p0 <patches-branch/tcg-target.diff || exit 1
+patch -p0 <patches-branch/translate.diff || exit 1
 
 echo "[+] Patching done."
+
+cp -r "qemu-${VERSION}-branch" "qemu-${VERSION}-branch-x86"
+mv "qemu-${VERSION}-branch" "qemu-${VERSION}-branch-x64"
 
 ### Patch for basic block count tracer
 
 echo "[*] Applying patches for bbcount..."
 
-patch -p0 <patches-bbcount/syscall.diff || exit 1
+cp patches-bbcount/chatkey.cc qemu-${VERSION}-bbcount/
 patch -p0 <patches-bbcount/cpu-exec.diff || exit 1
 patch -p0 <patches-bbcount/makefile-target.diff || exit 1
-patch -p0 <patches-bbcount/makefile-objs.diff || exit 1
-patch -p0 <patches-bbcount/main.diff || exit 1
-cp patches-bbcount/chatkey.cc qemu-2.3.0-bbcount/linux-user/
+patch -p0 <patches-bbcount/syscall.diff || exit 1
 echo "[+] Patching done."
 
-### Copy directories, one for x86 and the other for x64
-
-cp -r "qemu-2.3.0-coverage" "qemu-2.3.0-coverage-x86"
-mv "qemu-2.3.0-coverage" "qemu-2.3.0-coverage-x64"
-cp -r "qemu-2.3.0-branch" "qemu-2.3.0-branch-x86"
-mv "qemu-2.3.0-branch" "qemu-2.3.0-branch-x64"
-cp -r "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x86"
-mv "qemu-2.3.0-bbcount" "qemu-2.3.0-bbcount-x64"
+cp -r "qemu-${VERSION}-bbcount" "qemu-${VERSION}-bbcount-x86"
+mv "qemu-${VERSION}-bbcount" "qemu-${VERSION}-bbcount-x64"

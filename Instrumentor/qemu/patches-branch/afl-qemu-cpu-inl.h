@@ -34,13 +34,10 @@ unsigned int afl_forksrv_pid;
 
 /* Function declarations. */
 
-static void afl_forkserver(CPUArchState*);
+static void afl_forkserver(CPUState*);
 
-static void afl_wait_tsl(CPUArchState*, int);
+static void afl_wait_tsl(CPUState*, int);
 static void afl_request_tsl(target_ulong, target_ulong, uint64_t);
-
-static TranslationBlock *tb_find_slow(CPUArchState*, target_ulong,
-                                      target_ulong, uint64_t);
 
 /* Data structure passed around by the translate handlers: */
 
@@ -50,14 +47,14 @@ struct afl_tsl {
   uint64_t flags;
 };
 
-
 /*************************
  * ACTUAL IMPLEMENTATION *
  *************************/
 
 /* Fork server logic, invoked once we hit _start. */
 
-static void afl_forkserver(CPUArchState *env) {
+static void afl_forkserver(CPUState *cpu) {
+
   static unsigned char tmp[4];
   uint64_t tmp_input;
 
@@ -113,7 +110,7 @@ static void afl_forkserver(CPUArchState *env) {
 
     /* Collect translation requests until child dies and closes the pipe. */
 
-    afl_wait_tsl(env, t_fd[0]);
+    afl_wait_tsl(cpu, t_fd[0]);
 
     /* Get and relay exit status to parent. */
 
@@ -144,13 +141,13 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
 
 }
 
-
 /* This is the other side of the same channel. Since timeouts are handled by
    afl-fuzz simply killing the child, we can just wait until the pipe breaks. */
 
-static void afl_wait_tsl(CPUArchState *env, int fd) {
+static void afl_wait_tsl(CPUState *cpu, int fd) {
 
   struct afl_tsl t;
+  TranslationBlock *tb;
 
   while (1) {
 
@@ -159,7 +156,15 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
     if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
       break;
 
-    tb_find_slow(env, t.pc, t.cs_base, t.flags);
+    tb = tb_htable_lookup(cpu, t.pc, t.cs_base, t.flags);
+
+    if(!tb) {
+      mmap_lock();
+      tb_lock();
+      tb_gen_code(cpu, t.pc, t.cs_base, t.flags, 0);
+      mmap_unlock();
+      tb_unlock();
+    }
 
   }
 

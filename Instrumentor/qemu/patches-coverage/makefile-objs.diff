@@ -1,0 +1,7 @@
+--- qemu-2.10.0-coverage/accel/tcg/Makefile.objs.orig	2020-10-03 21:05:29.921244848 -0700
++++ qemu-2.10.0-coverage/accel/tcg/Makefile.objs	2020-10-03 21:05:21.853199823 -0700
+@@ -1,3 +1,3 @@
+ obj-$(CONFIG_SOFTMMU) += tcg-all.o
+ obj-$(CONFIG_SOFTMMU) += cputlb.o
+-obj-y += cpu-exec.o cpu-exec-common.o translate-all.o
++obj-y += cpu-exec.o cpu-exec-common.o translate-all.o chatkey.o

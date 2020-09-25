@@ -1,11 +1,11 @@
---- qemu-2.3.0-branch/Makefile.target.orig	2017-04-13 20:44:12.868483773 +0900
-+++ qemu-2.3.0-branch/Makefile.target	2017-04-10 16:46:23.364441824 +0900
-@@ -83,7 +83,7 @@
- #########################################################
- # cpu emulator library
- obj-y = exec.o translate-all.o cpu-exec.o
--obj-y += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o
-+obj-y += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o tcg/chatkey.o
- obj-$(CONFIG_TCG_INTERPRETER) += tci.o
+--- qemu-2.10.0-branch/Makefile.target.orig	2020-10-03 21:06:01.957430875 -0700
++++ qemu-2.10.0-branch/Makefile.target	2020-10-03 21:05:57.237402757 -0700
+@@ -94,7 +94,7 @@
+ obj-y += exec.o
+ obj-y += accel/
+ obj-$(CONFIG_TCG) += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o
+-obj-$(CONFIG_TCG) += tcg/tcg-common.o tcg/tcg-runtime.o
++obj-$(CONFIG_TCG) += tcg/tcg-common.o tcg/tcg-runtime.o tcg/chatkey.o
+ obj-$(CONFIG_TCG_INTERPRETER) += tcg/tci.o
  obj-$(CONFIG_TCG_INTERPRETER) += disas/tci.o
  obj-y += fpu/softfloat.o

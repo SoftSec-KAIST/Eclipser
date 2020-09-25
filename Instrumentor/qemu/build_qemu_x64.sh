@@ -16,13 +16,15 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 
+VERSION="2.10.0"
+
 build_qemu () {
     echo "[*] Configuring QEMU for x86_64..."
 
-    cd qemu-2.3.0-$1-x64 || exit 1
+    cd qemu-${VERSION}-$1-x64 || exit 1
 
     CFLAGS="-O3" ./configure --disable-system --enable-linux-user \
-      --python=python2 --enable-guest-base --disable-gtk --disable-sdl --disable-vnc \
+      --python=python2 --disable-gtk --disable-sdl --disable-vnc \
       --target-list="x86_64-linux-user" || exit 1
 
     echo "[+] Configuration complete."
@@ -37,8 +39,6 @@ build_qemu () {
     cp -f "x86_64-linux-user/qemu-x86_64" "../qemu-trace" || exit 1
     cd ..
 }
-
-### Build QEMU tracers
 
 build_qemu coverage
 mv "./qemu-trace" "../../build/qemu-trace-coverage-x64" || exit 1

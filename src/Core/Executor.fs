@@ -65,6 +65,8 @@ let initialize opt =
   set_env("CK_FEED_ADDR", "0")
   set_env("CK_FEED_IDX", "0")
   set_env("CK_MEASURE_COV", "0")
+  // Disable TranslationBlock chaining feature of QEMU.
+  set_env("QEMU_LOG", "nochain")
   initialize_exec ()
   // Initialize fork server.
   forkServerEnabled <- true

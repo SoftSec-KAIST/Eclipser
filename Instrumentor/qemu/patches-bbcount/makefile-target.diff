@@ -1,11 +1,10 @@
---- qemu-2.3.0-bbcount/Makefile.target.orig	2018-05-24 15:42:00.432802634 +0900
-+++ qemu-2.3.0-bbcount/Makefile.target	2018-05-24 15:19:52.472308828 +0900
-@@ -11,7 +11,7 @@
- endif
- QEMU_CFLAGS += -I.. -I$(SRC_PATH)/target-$(TARGET_BASE_ARCH) -DNEED_CPU_H
- 
--QEMU_CFLAGS+=-I$(SRC_PATH)/include
-+QEMU_CFLAGS+=-I$(SRC_PATH)/include -I$(SRC_PATH)/../../sparsehash/sparsehash-2.0.3/src -I$(SRC_PATH)/../../sparsehash/build/src
- 
- ifdef CONFIG_USER_ONLY
- # user emulator name
+--- qemu-2.10.0-bbcount/Makefile.target.orig	2020-09-29 08:25:21.155543947 -0700
++++ qemu-2.10.0-bbcount/Makefile.target	2020-09-29 08:22:26.302363966 -0700
+@@ -92,6 +92,7 @@
+ #########################################################
+ # cpu emulator library
+ obj-y += exec.o
++obj-y += chatkey.o
+ obj-y += accel/
+ obj-$(CONFIG_TCG) += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o
+ obj-$(CONFIG_TCG) += tcg/tcg-common.o tcg/tcg-runtime.o

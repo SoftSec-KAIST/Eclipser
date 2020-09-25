@@ -1,187 +1,26 @@
---- qemu-2.3.0/linux-user/signal.c.orig	2018-09-14 14:35:01.547517238 +0900
-+++ qemu-2.3.0/linux-user/signal.c	2018-09-14 14:53:42.013375909 +0900
-@@ -30,6 +30,8 @@
- #include "qemu-common.h"
+--- qemu-2.10.0/linux-user/signal.c.orig	2020-10-01 07:50:32.384129945 -0700
++++ qemu-2.10.0/linux-user/signal.c	2020-10-02 05:04:07.337597365 -0700
+@@ -26,6 +26,8 @@
  #include "target_signal.h"
+ #include "trace.h"
  
 +extern void chatkey_exit(void);
 +
- //#define DEBUG_SIGNAL
- 
  static struct target_sigaltstack target_sigaltstack_used = {
-@@ -500,6 +502,16 @@
-     abi_ulong handler;
-     int queue;
+     .ss_sp = 0,
+     .ss_size = 0,
+@@ -6563,6 +6565,14 @@
+     struct target_sigaction *sa;
+     TaskState *ts = cpu->opaque;
  
-+    /* If the signal indicates (1) what we define as 'crash'(e.g.
-+     * segfault, abortion) (2) or termination due to timeout, call
-+     * chatkey_exit() to flush out the information traced until now.
++    /* If the signal indicates a crash or timeout, call chatkey_exit() to flush
++     * out the information traced until now.
 +     */
 +    if (sig == SIGSEGV || sig == SIGFPE || sig == SIGILL || sig == SIGABRT ||
 +        sig == SIGTERM) {
 +      chatkey_exit();
 +    }
 +
-+
- #if defined(DEBUG_SIGNAL)
-     fprintf(stderr, "queue_signal: sig=%d\n",
-             sig);
-@@ -1062,7 +1074,7 @@
- 
-         fpstate_addr = tswapl(sc->fpstate);
- 	if (fpstate_addr != 0) {
--                if (!access_ok(VERIFY_READ, fpstate_addr, 
-+                if (!access_ok(VERIFY_READ, fpstate_addr,
-                                sizeof(struct target_fpstate)))
-                         goto badframe;
-                 cpu_x86_frstor(env, fpstate_addr, 1);
-@@ -1124,7 +1136,7 @@
- 	if (restore_sigcontext(env, &frame->uc.tuc_mcontext, &eax))
- 		goto badframe;
- 
--	if (do_sigaltstack(frame_addr + offsetof(struct rt_sigframe, uc.tuc_stack), 0, 
-+	if (do_sigaltstack(frame_addr + offsetof(struct rt_sigframe, uc.tuc_stack), 0,
-                            get_sp_from_cpustate(env)) == -EFAULT)
- 		goto badframe;
- 
-@@ -2216,7 +2228,7 @@
- #define UREG_FP        UREG_I6
- #define UREG_SP        UREG_O6
- 
--static inline abi_ulong get_sigframe(struct target_sigaction *sa, 
-+static inline abi_ulong get_sigframe(struct target_sigaction *sa,
-                                      CPUSPARCState *env,
-                                      unsigned long framesize)
- {
-@@ -2285,11 +2297,11 @@
-         sigframe_size = NF_ALIGNEDSZ;
- 	sf_addr = get_sigframe(ka, env, sigframe_size);
- 
--        sf = lock_user(VERIFY_WRITE, sf_addr, 
-+        sf = lock_user(VERIFY_WRITE, sf_addr,
-                        sizeof(struct target_signal_frame), 0);
-         if (!sf)
- 		goto sigsegv;
--                
-+
- 	//fprintf(stderr, "sf: %x pc %x fp %x sp %x\n", sf, env->pc, env->regwptr[UREG_FP], env->regwptr[UREG_SP]);
- #if 0
- 	if (invalid_frame_pointer(sf, sigframe_size))
-@@ -2319,9 +2331,9 @@
- 	/* 3. signal handler back-trampoline and parameters */
- 	env->regwptr[UREG_FP] = sf_addr;
- 	env->regwptr[UREG_I0] = sig;
--	env->regwptr[UREG_I1] = sf_addr + 
-+	env->regwptr[UREG_I1] = sf_addr +
-                 offsetof(struct target_signal_frame, info);
--	env->regwptr[UREG_I2] = sf_addr + 
-+	env->regwptr[UREG_I2] = sf_addr +
-                 offsetof(struct target_signal_frame, info);
- 
- 	/* 4. signal handler */
-@@ -2333,7 +2345,7 @@
- 	else {
-                 uint32_t val32;
- 
--		env->regwptr[UREG_I7] = sf_addr + 
-+		env->regwptr[UREG_I7] = sf_addr +
-                         offsetof(struct target_signal_frame, insns) - 2 * 4;
- 
- 		/* mov __NR_sigreturn, %g1 */
-@@ -2578,10 +2590,10 @@
-     __get_user(i7, &(ucp->tuc_mcontext.mc_i7));
- 
-     w_addr = TARGET_STACK_BIAS+env->regwptr[UREG_I6];
--    if (put_user(fp, w_addr + offsetof(struct target_reg_window, ins[6]), 
-+    if (put_user(fp, w_addr + offsetof(struct target_reg_window, ins[6]),
-                  abi_ulong) != 0)
-         goto do_sigsegv;
--    if (put_user(i7, w_addr + offsetof(struct target_reg_window, ins[7]), 
-+    if (put_user(i7, w_addr + offsetof(struct target_reg_window, ins[7]),
-                  abi_ulong) != 0)
-         goto do_sigsegv;
-     /* FIXME this does not match how the kernel handles the FPU in
-@@ -2626,7 +2638,7 @@
-     ucp_addr = env->regwptr[UREG_I0];
-     if (!lock_user_struct(VERIFY_WRITE, ucp, ucp_addr, 0))
-         goto do_sigsegv;
--    
-+
-     mcp = &ucp->tuc_mcontext;
-     grp = &mcp->mc_gregs;
- 
-@@ -2675,10 +2687,10 @@
- 
-     w_addr = TARGET_STACK_BIAS+env->regwptr[UREG_I6];
-     fp = i7 = 0;
--    if (get_user(fp, w_addr + offsetof(struct target_reg_window, ins[6]), 
-+    if (get_user(fp, w_addr + offsetof(struct target_reg_window, ins[6]),
-                  abi_ulong) != 0)
-         goto do_sigsegv;
--    if (get_user(i7, w_addr + offsetof(struct target_reg_window, ins[7]), 
-+    if (get_user(i7, w_addr + offsetof(struct target_reg_window, ins[7]),
-                  abi_ulong) != 0)
-         goto do_sigsegv;
-     __put_user(fp, &(mcp->mc_fp));
-@@ -3417,7 +3429,7 @@
- 
- struct rt_signal_frame {
-     siginfo_t info;
--    struct ucontext uc;
-+    ucontext_t uc;
-     uint32_t tramp[2];
- };
- 
-@@ -3596,7 +3608,7 @@
-     /* We got here through a sigreturn syscall, our path back is via an
-        rtb insn so setup r14 for that.  */
-     env->regs[14] = env->sregs[SR_PC];
-- 
-+
-     unlock_user_struct(frame, frame_addr, 0);
-     return env->regs[10];
-   badframe:
-@@ -3628,7 +3640,7 @@
-         siginfo_t *pinfo;
-         void *puc;
-         siginfo_t info;
--        struct ucontext uc;
-+        ucontext_t uc;
-         uint16_t retcode[4];      /* Trampoline code. */
- };
- 
-@@ -3931,7 +3943,7 @@
-         tswap_siginfo(&frame->info, info);
-     }
- 
--    /*err |= __clear_user(&frame->uc, offsetof(struct ucontext, uc_mcontext));*/
-+    /*err |= __clear_user(&frame->uc, offsetof(ucontext_t, uc_mcontext));*/
-     __put_user(0, &frame->uc.tuc_flags);
-     __put_user(0, &frame->uc.tuc_link);
-     __put_user(target_sigaltstack_used.ss_sp,
-@@ -4948,7 +4960,7 @@
-     abi_ulong extramask[TARGET_NSIG_WORDS-1];
-     struct target_sigcontext sc;
- };
-- 
-+
- typedef int target_greg_t;
- #define TARGET_NGREG 18
- typedef target_greg_t target_gregset_t[TARGET_NGREG];
-@@ -5107,14 +5119,14 @@
- 
-     return 0;
- }
-- 
-+
- static inline int target_rt_restore_ucontext(CPUM68KState *env,
-                                              struct target_ucontext *uc,
-                                              int *pd0)
- {
-     int temp;
-     target_greg_t *gregs = uc->tuc_mcontext.gregs;
--    
-+
-     __get_user(temp, &uc->tuc_mcontext.version);
-     if (temp != TARGET_MCONTEXT_VERSION)
-         goto badframe;
+     trace_user_handle_signal(cpu_env, sig);
+     /* dequeue signal */
+     k->pending = 0;
