@@ -22,7 +22,7 @@ extern unsigned int afl_forksrv_pid;
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
-#define MAX_TRACE_LEN (1000000)
+#define MAX_TRACE_LEN (100000)
 
 #define IGNORE_COVERAGE 1
 #define NOCMULATIVE_COVERAGE 2
