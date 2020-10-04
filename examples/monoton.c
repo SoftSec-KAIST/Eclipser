@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
       ((j << 8) & 0xff0000) | // move byte 1 to byte 2
       ((j << 24) & 0xff000000); // byte 0 to byte 3
   if (j * j == 0x10A29504) // 0x4142 ^ 2
-    printf("Found new path 2\n");
+    printf("Found new path 2!\n");
 
   n = read(fd, buf, 8);
   buf[n] = '\0';
