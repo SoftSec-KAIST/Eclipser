@@ -13,6 +13,18 @@ type InputSource =
   /// Fuzz file input source.
   | FileInput of filepath: string
 
+/// Describes how to measure coverage in QEMU tracer for branch feedback.
+type CoverageMeasure =
+  | Ignore // Just collect branch information and ignore coverage.
+  | NonCumulative // Measure coverage as well, but without any side effect.
+  | Cumulative // Measure coverage as well, in cumulative manner.
+
+module CoverageMeasure =
+  let toEnum = function
+    | Ignore -> 1
+    | NonCumulative -> 2
+    | Cumulative -> 3
+
 /// Describes the gain of coverage.
 type CoverageGain =
   | NoGain

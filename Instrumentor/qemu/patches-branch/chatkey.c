@@ -24,6 +24,9 @@ extern unsigned int afl_forksrv_pid;
 
 #define MAX_TRACE_LEN (1000000)
 
+#define IGNORE_COVERAGE 1
+#define NOCMULATIVE_COVERAGE 2
+#define CUMULATIVE_COVERAGE 3
 
 void flush_trace_buffer(void);
 void chatkey_setup_before_forkserver(void);
@@ -82,7 +85,7 @@ void chatkey_setup_after_forkserver(void) {
     measure_coverage = atoi(getenv("CK_MEASURE_COV"));
   }
 
-  if (measure_coverage == 1) {
+  if (measure_coverage != IGNORE_COVERAGE) {
     coverage_fp = fopen(coverage_path, "w");
     assert(coverage_fp != NULL);
   }
@@ -309,6 +312,8 @@ void chatkey_log_bb(abi_ulong addr) {
   new_byte = old_byte | byte_mask;
   if (old_byte != new_byte) {
     found_new_edge = 1;
-    edge_bitmap[byte_idx] = new_byte;
+    if (measure_coverage == CUMULATIVE_COVERAGE) {
+      edge_bitmap[byte_idx] = new_byte;
+    }
   }
 }

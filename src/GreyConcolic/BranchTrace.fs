@@ -7,16 +7,22 @@ type BranchTrace = BranchInfo list
 
 module BranchTrace =
 
-  let collectAux opt seed tryVal =
+  let collectAux opt seed acc tryVal =
+    let accTraces, accCandidates = acc
     let tryByteVal = Sampled (byte tryVal)
     let trySeed = Seed.updateCurByte seed tryByteVal
     let exitSig, covGain, trace = Executor.getBranchTrace opt trySeed tryVal
-    (trace, (trySeed, exitSig, covGain))
+    let accTraces = trace :: accTraces
+    let accCandidates = if covGain = NewEdge || Signal.isCrash exitSig
+                        then seed :: accCandidates
+                        else accCandidates
+    (accTraces, accCandidates)
 
   let collect seed opt minVal maxVal =
     let nSpawn = opt.NSpawn
     let tryVals = sampleInt minVal maxVal nSpawn
-    List.map (collectAux opt seed) tryVals |> List.unzip
+    let traces, candidates = List.fold(collectAux opt seed) ([], []) tryVals
+    List.rev traces, List.rev candidates // To preserver order.
 
   let getHeadAddr (brTrace: BranchTrace) =
     match brTrace with

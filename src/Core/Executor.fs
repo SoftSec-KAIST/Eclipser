@@ -62,12 +62,10 @@ let initialize opt =
   set_env("CK_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
   if verbosity >= 2 then
     set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
-  set_env("CK_FEED_ADDR", "0")
-  set_env("CK_FEED_IDX", "0")
-  set_env("CK_MEASURE_COV", "0")
+  // Initialize C wrapper code.
+  initialize_exec ()
   // Disable TranslationBlock chaining feature of QEMU.
   set_env("QEMU_LOG", "nochain")
-  initialize_exec ()
   // Initialize fork server.
   forkServerEnabled <- true
   set_env("CK_FORK_SERVER", "1")
@@ -190,18 +188,18 @@ let private runCoverageTracerForked opt stdin =
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
-let private runBranchTracerForked opt stdin addr idx measureCov =
+let private runBranchTracerForked opt stdin addr idx covMeasure =
   let timeout = opt.ExecTimeout
   let stdLen = Array.length stdin
-  let covFlag = if measureCov then 1 else 0
-  let signal = exec_fork_branch(timeout, stdLen, stdin, addr, idx, covFlag)
+  let covEnum = CoverageMeasure.toEnum covMeasure
+  let signal = exec_fork_branch(timeout, stdLen, stdin, addr, idx, covEnum)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
 
-let private setEnvForBranch (addr: uint64) (idx: uint32) measureCov =
+let private setEnvForBranch (addr: uint64) (idx: uint32) covMeasure =
   set_env("CK_FEED_ADDR", sprintf "%016x" addr)
   set_env("CK_FEED_IDX", sprintf "%016x" idx)
-  set_env("CK_MEASURE_COV", sprintf "%d" (if measureCov then 1 else 0))
+  set_env("CK_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
 
 (*** Top-level tracer executor functions ***)
 
@@ -216,9 +214,10 @@ let getCoverage opt seed =
 let getBranchTrace opt seed tryVal =
   setupFile seed
   let stdin = prepareStdIn seed
-  let exitSig =
-    if forkServerEnabled then runBranchTracerForked opt stdin 0UL 0ul true
-    else setEnvForBranch 0UL 0ul true; runTracer Branch opt stdin
+  let exitSig = if forkServerEnabled
+                then runBranchTracerForked opt stdin 0UL 0ul NonCumulative
+                else setEnvForBranch 0UL 0ul NonCumulative
+                     runTracer Branch opt stdin
   let coverageGain = parseCoverage coverageLog
   let branchTrace = readBranchTrace opt branchLog tryVal
   removeFile coverageLog
@@ -228,9 +227,10 @@ let getBranchInfo opt seed tryVal targPoint =
   setupFile seed
   let stdin = prepareStdIn seed
   let addr, idx = targPoint.Addr, uint32 targPoint.Idx
-  let exitSig =
-    if forkServerEnabled then runBranchTracerForked opt stdin addr idx true
-    else setEnvForBranch addr idx true; runTracer Branch opt stdin
+  let exitSig = if forkServerEnabled
+                then runBranchTracerForked opt stdin addr idx Cumulative
+                else setEnvForBranch addr idx Cumulative
+                     runTracer Branch opt stdin
   let coverageGain = parseCoverage coverageLog
   let branchInfoOpt = tryReadBranchInfo opt branchLog tryVal
   removeFile coverageLog
@@ -240,8 +240,8 @@ let getBranchInfoOnly opt seed tryVal targPoint =
   setupFile seed
   let stdin = prepareStdIn seed
   let addr, idx = targPoint.Addr, uint32 targPoint.Idx
-  if forkServerEnabled then runBranchTracerForked opt stdin addr idx false
-  else setEnvForBranch addr idx false; runTracer Branch opt stdin
+  if forkServerEnabled then runBranchTracerForked opt stdin addr idx Ignore
+  else setEnvForBranch addr idx Ignore; runTracer Branch opt stdin
   |> ignore
   let brInfoOpt = tryReadBranchInfo opt branchLog tryVal
   brInfoOpt
