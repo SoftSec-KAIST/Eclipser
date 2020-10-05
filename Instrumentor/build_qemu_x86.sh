@@ -41,15 +41,15 @@ build_qemu () {
 }
 
 build_qemu coverage
-mv "./qemu-trace" "../../build/qemu-trace-coverage-x86" || exit 1
+mv "./qemu-trace" "../build/qemu-trace-coverage-x86" || exit 1
 echo "[+] Successfully created 'qemu-trace-coverage-x86'."
 
 build_qemu branch
-mv "./qemu-trace" "../../build/qemu-trace-branch-x86" || exit 1
+mv "./qemu-trace" "../build/qemu-trace-branch-x86" || exit 1
 echo "[+] Successfully created 'qemu-trace-branch-x86'."
 
 build_qemu bbcount
-mv "./qemu-trace" "../../build/qemu-trace-bbcount-x86" || exit 1
+mv "./qemu-trace" "../build/qemu-trace-bbcount-x86" || exit 1
 echo "[+] Successfully created 'qemu-trace-bbcount-x86'."
 
 exit 0

@@ -1,5 +1,6 @@
+QEMU_VERSION=2.10.0
 BUILDDIR=$(shell pwd)/build
-QEMUDIR=$(shell pwd)/Instrumentor/qemu
+QEMUDIR=$(shell pwd)/Instrumentor
 
 all: $(BUILDDIR) $(QEMUDIR)/.compiled Eclipser
 
@@ -12,8 +13,8 @@ clean:
 	rm -f $(QEMUDIR)/.compiled
 	rm -f $(QEMUDIR)/.compiled_x86
 	rm -f $(QEMUDIR)/.compiled_x64
-	rm -rf $(QEMUDIR)/qemu-2.3.0
-	rm -rf $(QEMUDIR)/qemu-2.3.0-*
+	rm -rf $(QEMUDIR)/qemu-${QEMU_VERSION}
+	rm -rf $(QEMUDIR)/qemu-${QEMU_VERSION}-*
 	rm -rf $(BUILDDIR)
 
 $(BUILDDIR):

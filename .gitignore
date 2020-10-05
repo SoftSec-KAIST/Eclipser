@@ -12,11 +12,11 @@ obj/
 .vscode/
 
 #etc
-Instrumentor/qemu/.prepared
-Instrumentor/qemu/qemu-2.10.0*
-Instrumentor/qemu/.compiled_x86
-Instrumentor/qemu/.compiled_x64
-Instrumentor/qemu/.compiled
+Instrumentor/.prepared
+Instrumentor/qemu-2.10.0*
+Instrumentor/.compiled_x86
+Instrumentor/.compiled_x64
+Instrumentor/.compiled
 *.swp
 *.bin
 box
