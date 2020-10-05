@@ -4,7 +4,7 @@
  #########################################################
  # cpu emulator library
  obj-y += exec.o
-+obj-y += chatkey.o
++obj-y += eclipser.o
  obj-y += accel/
  obj-$(CONFIG_TCG) += tcg/tcg.o tcg/tcg-op.o tcg/optimize.o
  obj-$(CONFIG_TCG) += tcg/tcg-common.o tcg/tcg-runtime.o

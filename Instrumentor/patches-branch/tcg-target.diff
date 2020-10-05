@@ -4,7 +4,7 @@
  
  #include "tcg-be-ldst.h"
  
-+extern void chatkey_trampoline(abi_ulong oprnd1,
++extern void eclipser_trampoline(abi_ulong oprnd1,
 +                               abi_ulong oprnd2,
 +                               unsigned char type);
 +
@@ -23,7 +23,7 @@
          c = ARITH_ADD;
          goto gen_arith;
      OP_32_64(sub):
-+        if (args[3] != CHATKEY_IGNORE) {
++        if (args[3] != ECLIPSER_IGNORE) {
 +          ot = args[4];
 +#if TCG_TARGET_REG_BITS == 64
 +          tcg_out_push(s, TCG_REG_RDI);
@@ -36,7 +36,7 @@
 +            tcg_out_mov(s, TCG_TYPE_I64, TCG_REG_RSI, args[2]);
 +          }
 +          tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (args[3] << 6) | ot);
-+          tcg_out_call(s, (tcg_insn_unit*)chatkey_trampoline);
++          tcg_out_call(s, (tcg_insn_unit*)eclipser_trampoline);
 +          tcg_out_pop(s, TCG_REG_RDX);
 +          tcg_out_pop(s, TCG_REG_RSI);
 +          tcg_out_pop(s, TCG_REG_RDI);
@@ -51,7 +51,7 @@
 +            tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_ESI, args[2]);
 +          }
 +          tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_EDX, (args[3] << 6) | ot);
-+          tcg_out_call(s, (tcg_insn_unit*)chatkey_trampoline);
++          tcg_out_call(s, (tcg_insn_unit*)eclipser_trampoline);
 +          tcg_out_pop(s, TCG_REG_EDX);
 +          tcg_out_pop(s, TCG_REG_ESI);
 +          tcg_out_pop(s, TCG_REG_EDI);
@@ -63,7 +63,7 @@
 +        /* Recall that we only marked 'test r1, r1' case as our instrumentation
 +         * target, so consider it as 'cmp r1, 0'.
 +         */
-+        if (args[3] != CHATKEY_IGNORE) {
++        if (args[3] != ECLIPSER_IGNORE) {
 +          ot = args[4];
 +#if TCG_TARGET_REG_BITS == 64
 +          tcg_out_push(s, TCG_REG_RDI);
@@ -72,7 +72,7 @@
 +          tcg_out_mov(s, TCG_TYPE_I64, TCG_REG_RDI, args[0]);
 +          tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RSI, 0);
 +          tcg_out_movi(s, TCG_TYPE_I64, TCG_REG_RDX, (args[3] << 6) | ot);
-+          tcg_out_call(s, (tcg_insn_unit*)chatkey_trampoline);
++          tcg_out_call(s, (tcg_insn_unit*)eclipser_trampoline);
 +          tcg_out_pop(s, TCG_REG_RDX);
 +          tcg_out_pop(s, TCG_REG_RSI);
 +          tcg_out_pop(s, TCG_REG_RDI);
@@ -83,7 +83,7 @@
 +          tcg_out_mov(s, TCG_TYPE_I32, TCG_REG_EDI, args[0]);
 +          tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_ESI, 0);
 +          tcg_out_movi(s, TCG_TYPE_I32, TCG_REG_EDX, (args[3] << 6) | ot);
-+          tcg_out_call(s, (tcg_insn_unit*)chatkey_trampoline);
++          tcg_out_call(s, (tcg_insn_unit*)eclipser_trampoline);
 +          tcg_out_pop(s, TCG_REG_EDX);
 +          tcg_out_pop(s, TCG_REG_ESI);
 +          tcg_out_pop(s, TCG_REG_EDI);

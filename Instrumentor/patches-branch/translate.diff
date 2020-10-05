@@ -4,9 +4,9 @@
  
  //#define MACRO_TEST   1
  
-+extern int chatkey_EP_passed;
-+extern abi_ulong chatkey_curr_addr;
-+extern abi_ulong chatkey_targ_addr;
++extern int eclipser_EP_passed;
++extern abi_ulong eclipser_curr_addr;
++extern abi_ulong eclipser_targ_addr;
 +
  /* global register indexes */
  static TCGv_env cpu_env;
@@ -15,8 +15,8 @@
      int cpuid_ext3_features;
      int cpuid_7_0_ebx_features;
      int cpuid_xsave_features;
-+    /* Additional field for Chatkey, to record the parameter index of the latest
-+     * cmp/test instruction.
++    /* Additional field for eclipser, to record the parameter index of the
++     * latest cmp/test instruction.
 +     */
 +    int latest_tgt_parm_idx;
  } DisasContext;
@@ -26,9 +26,9 @@
      tcg_gen_mov_tl(cpu_cc_dst, cpu_T0);
  }
  
-+static inline void gen_op_testl_T0_T1_cc_chatkey(TCGMemOp ot)
++static inline void gen_op_testl_T0_T1_cc_eclipser(TCGMemOp ot)
 +{
-+    tcg_gen_and_tl_chatkey(cpu_cc_dst, cpu_T0, cpu_T1, ot);
++    tcg_gen_and_tl_eclipser(cpu_cc_dst, cpu_T0, cpu_T1, ot);
 +}
 +
  static inline void gen_op_testl_T0_T1_cc(void)
@@ -92,17 +92,17 @@
 +    int cc_optimize_flag = 1;
 +
 +    /* If this is a JCC instruction followed by sub/cmp/test, replace the
-+     * previous comparison type 'CHATKEY_IGNORE' with a new one, to indicate
++     * previous comparison type 'ECLIPSER_IGNORE' with a new one, to indicate
 +     * that this is our instrumentation target.
 +     */
 +    if (jcc_op == JCC_Z && s->latest_tgt_parm_idx != -1) {
-+      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_EQUALITY;
++      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_EQUALITY;
 +      cc_optimize_flag = 0;
 +    } else if ((jcc_op == JCC_B || jcc_op == JCC_BE) && s->latest_tgt_parm_idx != -1) {
-+      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_UNSIGNED;
++      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_UNSIGNED;
 +      cc_optimize_flag = 0;
 +    } else if ((jcc_op == JCC_L || jcc_op == JCC_LE) && s->latest_tgt_parm_idx != -1) {
-+      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_SIGNED;
++      tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_SIGNED;
 +      cc_optimize_flag = 0;
 +    }
 +
@@ -145,8 +145,8 @@
          } else {
              tcg_gen_mov_tl(cpu_cc_srcT, cpu_T0);
 -            tcg_gen_sub_tl(cpu_T0, cpu_T0, cpu_T1);
-+            if (chatkey_EP_passed) {
-+                tcg_gen_sub_tl_chatkey(cpu_T0, cpu_T0, cpu_T1, ot);
++            if (eclipser_EP_passed) {
++                tcg_gen_sub_tl_eclipser(cpu_T0, cpu_T0, cpu_T1, ot);
 +                // Record the index of comparison type argument.
 +                assert(tcg_ctx.gen_next_parm_idx >= 2);
 +                s1->latest_tgt_parm_idx = tcg_ctx.gen_next_parm_idx - 2;
@@ -185,8 +185,8 @@
          tcg_gen_mov_tl(cpu_cc_src, cpu_T1);
          tcg_gen_mov_tl(cpu_cc_srcT, cpu_T0);
 -        tcg_gen_sub_tl(cpu_cc_dst, cpu_T0, cpu_T1);
-+        if (chatkey_EP_passed) {
-+            tcg_gen_sub_tl_chatkey(cpu_cc_dst, cpu_T0, cpu_T1, ot);
++        if (eclipser_EP_passed) {
++            tcg_gen_sub_tl_eclipser(cpu_cc_dst, cpu_T0, cpu_T1, ot);
 +            // Record the index of comparison type argument.
 +            assert(tcg_ctx.gen_next_parm_idx >= 2);
 +            s1->latest_tgt_parm_idx = tcg_ctx.gen_next_parm_idx - 2;
@@ -233,8 +233,8 @@
 +        /* We only focus on test instruction with two same registers as operand,
 +         * e.g. "test eax, eax".
 +         */
-+        if (reg == rm && chatkey_EP_passed) {
-+            gen_op_testl_T0_T1_cc_chatkey(ot);
++        if (reg == rm && eclipser_EP_passed) {
++            gen_op_testl_T0_T1_cc_eclipser(ot);
 +            // Record the index of comparison type argument.
 +            assert(tcg_ctx.gen_next_parm_idx >= 2);
 +            s->latest_tgt_parm_idx = tcg_ctx.gen_next_parm_idx - 2;
@@ -252,17 +252,17 @@
 +        jcc_op = (b >> 1) & 7;
 +        cc_optimize_flag = 1;
 +        /* If this is a SETCC instruction followed by sub/cmp/test, replace the
-+         * previous comparison type 'CHATKEY_IGNORE' with a new one, to indicate
-+         * that this is our instrumentation target.
++         * previous comparison type 'ECLIPSER_IGNORE' with a new one, to 
++         * indicate that this is our instrumentation target.
 +         */
 +        if (jcc_op == JCC_Z && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_EQUALITY;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_EQUALITY;
 +          cc_optimize_flag = 0;
 +        } else if ((jcc_op == JCC_B || jcc_op == JCC_BE) && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_UNSIGNED;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_UNSIGNED;
 +          cc_optimize_flag = 0;
 +        } else if ((jcc_op == JCC_L || jcc_op == JCC_LE) && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_SIGNED;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_SIGNED;
 +          cc_optimize_flag = 0;
 +        }
          modrm = cpu_ldub_code(env, s->pc++);
@@ -274,17 +274,17 @@
 +        jcc_op = (b >> 1) & 7;
 +        cc_optimize_flag = 1;
 +        /* If this is a CMOV instruction followed by sub/cmp/test, replace the
-+         * previous comparison type 'CHATKEY_IGNORE' with a new one, to indicate
-+         * that this is our instrumentation target.
++         * previous comparison type 'ECLIPSER_IGNORE' with a new one, to
++         * indicate that this is our instrumentation target.
 +         */
 +        if (jcc_op == JCC_Z && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_EQUALITY;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_EQUALITY;
 +          cc_optimize_flag = 0;
 +        } else if ((jcc_op == JCC_B || jcc_op == JCC_BE) && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_UNSIGNED;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_UNSIGNED;
 +          cc_optimize_flag = 0;
 +        } else if ((jcc_op == JCC_L || jcc_op == JCC_LE) && s->latest_tgt_parm_idx != -1) {
-+          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = CHATKEY_CMP_SIZE_SIGNED;
++          tcg_ctx.gen_opparam_buf[s->latest_tgt_parm_idx] = ECLIPSER_CMP_SIZE_SIGNED;
 +          cc_optimize_flag = 0;
 +        }
          if (!(s->cpuid_features & CPUID_CMOV)) {

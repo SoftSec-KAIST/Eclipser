@@ -6,7 +6,7 @@ cp -r qemu-${VERSION}-branch-x64 qemu-${VERSION}-branch
 
 cp qemu-${VERSION}-branch/afl-qemu-cpu-inl.h ./patches-branch/afl-qemu-cpu-inl.h
 
-cp qemu-${VERSION}-branch/tcg/chatkey.c ./patches-branch/chatkey.c
+cp qemu-${VERSION}-branch/tcg/eclipser.c ./patches-branch/eclipser.c
 
 cp qemu-${VERSION}/accel/tcg/cpu-exec.c \
    qemu-${VERSION}-branch/accel/tcg/cpu-exec.c.orig

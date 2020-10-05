@@ -4,8 +4,8 @@
  
  #include "qemu.h"
  
-+extern void chatkey_exit(void);
-+extern void chatkey_close_fp(void);
++extern void eclipser_exit(void);
++extern void eclipser_detach(void);
 +
  #ifndef CLONE_IO
  #define CLONE_IO                0x80000000      /* Clone io context */
@@ -14,7 +14,7 @@
          ret = fork();
          if (ret == 0) {
              /* Child Process.  */
-+            chatkey_close_fp();
++            eclipser_detach();
              cpu_clone_regs(env, newsp);
              fork_end(1);
              /* There is a race condition here.  The parent process could
@@ -22,7 +22,7 @@
  #ifdef TARGET_GPROF
          _mcleanup();
  #endif
-+        chatkey_exit();
++        eclipser_exit();
          gdb_exit(cpu_env, arg1);
          _exit(arg1);
          ret = 0; /* avoid warning */
@@ -30,7 +30,7 @@
  #ifdef TARGET_GPROF
          _mcleanup();
  #endif
-+        chatkey_exit();
++        eclipser_exit();
          gdb_exit(cpu_env, arg1);
          ret = get_errno(exit_group(arg1));
          break;

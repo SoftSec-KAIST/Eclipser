@@ -53,7 +53,7 @@ static void afl_forkserver(CPUState *cpu) {
 
   static unsigned char tmp[4];
 
-  if (atoi(getenv("CK_FORK_SERVER")) != 1) return;
+  if (atoi(getenv("ECL_FORK_SERVER")) != 1) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */

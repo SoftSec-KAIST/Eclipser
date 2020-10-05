@@ -4,9 +4,9 @@
  #include "sysemu/cpus.h"
  #include "sysemu/replay.h"
  
-+extern abi_ulong chatkey_entry_point;
-+extern void chatkey_setup(void);
-+extern void chatkey_log_bb(abi_ulong addr);
++extern abi_ulong eclipser_entry_point;
++extern void eclipser_setup(void);
++extern void eclipser_log_bb(abi_ulong addr);
 +
  /* -icount align implementation. */
  
@@ -15,10 +15,10 @@
      int tb_exit;
      uint8_t *tb_ptr = itb->tc_ptr;
  
-+    if(itb->pc == chatkey_entry_point) {
-+      chatkey_setup();
++    if(itb->pc == eclipser_entry_point) {
++      eclipser_setup();
 +    }
-+    chatkey_log_bb(itb->pc);
++    eclipser_log_bb(itb->pc);
 +
      qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
                             "Trace %p [%d: " TARGET_FMT_lx "] %s\n",

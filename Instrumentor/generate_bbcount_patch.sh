@@ -4,7 +4,7 @@ VERSION="2.10.0"
 
 cp -r qemu-${VERSION}-bbcount-x64 qemu-${VERSION}-bbcount
 
-cp qemu-${VERSION}-bbcount/chatkey.cc ./patches-bbcount/
+cp qemu-${VERSION}-bbcount/eclipser.cc ./patches-bbcount/
 
 cp qemu-${VERSION}/accel/tcg/cpu-exec.c \
    qemu-${VERSION}-bbcount/accel/tcg/cpu-exec.c.orig

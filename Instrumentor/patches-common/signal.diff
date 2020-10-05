@@ -4,7 +4,7 @@
  #include "target_signal.h"
  #include "trace.h"
  
-+extern void chatkey_exit(void);
++extern void eclipser_exit(void);
 +
  static struct target_sigaltstack target_sigaltstack_used = {
      .ss_sp = 0,
@@ -13,12 +13,12 @@
      struct target_sigaction *sa;
      TaskState *ts = cpu->opaque;
  
-+    /* If the signal indicates a crash or timeout, call chatkey_exit() to flush
++    /* If the signal indicates a crash or timeout, call eclipser_exit() to flush
 +     * out the information traced until now.
 +     */
 +    if (sig == SIGSEGV || sig == SIGFPE || sig == SIGILL || sig == SIGABRT ||
 +        sig == SIGTERM) {
-+      chatkey_exit();
++      eclipser_exit();
 +    }
 +
      trace_user_handle_signal(cpu_env, sig);

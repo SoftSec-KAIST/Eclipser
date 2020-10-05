@@ -6,7 +6,7 @@ cp -r qemu-${VERSION}-coverage-x64 qemu-${VERSION}-coverage
 
 cp qemu-${VERSION}-coverage/accel/tcg/afl-qemu-cpu-inl.h ./patches-coverage/
 
-cp qemu-${VERSION}-coverage/accel/tcg/chatkey.c ./patches-coverage/
+cp qemu-${VERSION}-coverage/accel/tcg/eclipser.c ./patches-coverage/
 
 cp qemu-${VERSION}/accel/tcg/cpu-exec.c \
    qemu-${VERSION}-coverage/accel/tcg/cpu-exec.c.orig

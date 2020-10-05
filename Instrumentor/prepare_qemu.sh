@@ -21,7 +21,7 @@ QEMU_URL="https://download.qemu.org/qemu-${VERSION}.tar.bz2"
 QEMU_SHA384="9496d1d209d3a49d67dd83fbcf3f2bf376b7d5f500b0247d813639d104effa79d8a39e64f94d6f9541f6e9d8e3cc574f"
 
 echo "========================================="
-echo "Chatkey instrumentation QEMU build script"
+echo "QEMU build script for Eclipser"
 echo "========================================="
 echo
 
@@ -34,7 +34,7 @@ if [ ! "`uname -s`" = "Linux" ]; then
 
 fi
 
-if [ ! -f "patches-coverage/chatkey.c" -o ! -f "patches-branch/chatkey.c" ]; then
+if [ ! -f "patches-coverage/eclipser.c" -o ! -f "patches-branch/eclipser.c" ]; then
 
   echo "[-] Error: key files not found - wrong working directory?"
   exit 1
@@ -128,7 +128,7 @@ cp -r "qemu-${VERSION}" "qemu-${VERSION}-bbcount"
 echo "[*] Applying patches for coverage..."
 
 cp patches-coverage/afl-qemu-cpu-inl.h qemu-${VERSION}-coverage/accel/tcg/
-cp patches-coverage/chatkey.c qemu-${VERSION}-coverage/accel/tcg/
+cp patches-coverage/eclipser.c qemu-${VERSION}-coverage/accel/tcg/
 patch -p0 <patches-coverage/cpu-exec.diff || exit 1
 patch -p0 <patches-coverage/makefile-objs.diff || exit 1
 patch -p0 <patches-coverage/syscall.diff || exit 1
@@ -143,7 +143,7 @@ mv "qemu-${VERSION}-coverage" "qemu-${VERSION}-coverage-x64"
 echo "[*] Applying patches for branch..."
 
 cp patches-branch/afl-qemu-cpu-inl.h qemu-${VERSION}-branch/
-cp patches-branch/chatkey.c qemu-${VERSION}-branch/tcg/
+cp patches-branch/eclipser.c qemu-${VERSION}-branch/tcg/
 patch -p0 <patches-branch/cpu-exec.diff || exit 1
 patch -p0 <patches-branch/makefile-target.diff || exit 1
 patch -p0 <patches-branch/syscall.diff || exit 1
@@ -163,7 +163,7 @@ mv "qemu-${VERSION}-branch" "qemu-${VERSION}-branch-x64"
 
 echo "[*] Applying patches for bbcount..."
 
-cp patches-bbcount/chatkey.cc qemu-${VERSION}-bbcount/
+cp patches-bbcount/eclipser.cc qemu-${VERSION}-bbcount/
 patch -p0 <patches-bbcount/cpu-exec.diff || exit 1
 patch -p0 <patches-bbcount/makefile-target.diff || exit 1
 patch -p0 <patches-bbcount/syscall.diff || exit 1

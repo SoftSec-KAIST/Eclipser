@@ -17,7 +17,7 @@ export_common_patch() {
 export_coverage_patch() {
   TARG_DIR=./qemu-${VERSION}-coverage-$1
   cp qemu-${VERSION}-coverage/accel/tcg/afl-qemu-cpu-inl.h $TARG_DIR/accel/tcg/
-  cp qemu-${VERSION}-coverage/accel/tcg/chatkey.c $TARG_DIR/accel/tcg/
+  cp qemu-${VERSION}-coverage/accel/tcg/eclipser.c $TARG_DIR/accel/tcg/
   cp qemu-${VERSION}-coverage/accel/tcg/cpu-exec.c $TARG_DIR/accel/tcg/cpu-exec.c
   cp qemu-${VERSION}-coverage/accel/tcg/Makefile.objs $TARG_DIR/accel/tcg/Makefile.objs
   cp qemu-${VERSION}-coverage/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
@@ -26,7 +26,7 @@ export_coverage_patch() {
 export_branch_patch() {
   TARG_DIR=./qemu-${VERSION}-branch-$1
   cp qemu-${VERSION}-branch/afl-qemu-cpu-inl.h $TARG_DIR/
-  cp qemu-${VERSION}-branch/tcg/chatkey.c $TARG_DIR/tcg/
+  cp qemu-${VERSION}-branch/tcg/eclipser.c $TARG_DIR/tcg/
   cp qemu-${VERSION}-branch/accel/tcg/cpu-exec.c $TARG_DIR/accel/tcg/cpu-exec.c
   cp qemu-${VERSION}-branch/Makefile.target $TARG_DIR/Makefile.target
   cp qemu-${VERSION}-branch/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
@@ -40,7 +40,7 @@ export_branch_patch() {
 
 export_bbcount_patch() {
   TARG_DIR=./qemu-${VERSION}-bbcount-$1
-  cp qemu-${VERSION}-bbcount/chatkey.cc $TARG_DIR/
+  cp qemu-${VERSION}-bbcount/eclipser.cc $TARG_DIR/
   cp qemu-${VERSION}-bbcount/accel/tcg/cpu-exec.c $TARG_DIR/accel/tcg/cpu-exec.c
   cp qemu-${VERSION}-bbcount/Makefile.target $TARG_DIR/Makefile.target
   cp qemu-${VERSION}-bbcount/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
@@ -75,7 +75,7 @@ cp -r "qemu-${VERSION}" "qemu-${VERSION}-coverage"
 
 # Patch
 cp patches-coverage/afl-qemu-cpu-inl.h qemu-${VERSION}-coverage/accel/tcg/
-cp patches-coverage/chatkey.c qemu-${VERSION}-coverage/accel/tcg/
+cp patches-coverage/eclipser.c qemu-${VERSION}-coverage/accel/tcg/
 patch -p0 <patches-coverage/cpu-exec.diff || exit 1
 patch -p0 <patches-coverage/makefile-objs.diff || exit 1
 patch -p0 <patches-coverage/syscall.diff || exit 1
@@ -93,7 +93,7 @@ cp -r "qemu-${VERSION}" "qemu-${VERSION}-branch"
 
 # Patch
 cp patches-branch/afl-qemu-cpu-inl.h qemu-${VERSION}-branch/
-cp patches-branch/chatkey.c qemu-${VERSION}-branch/tcg/
+cp patches-branch/eclipser.c qemu-${VERSION}-branch/tcg/
 patch -p0 <patches-branch/cpu-exec.diff || exit 1
 patch -p0 <patches-branch/makefile-target.diff || exit 1
 patch -p0 <patches-branch/syscall.diff || exit 1
@@ -116,7 +116,7 @@ rm -rf "qemu-${VERSION}-branch"
 cp -r "qemu-${VERSION}" "qemu-${VERSION}-bbcount"
 
 # Patch
-cp patches-bbcount/chatkey.cc qemu-${VERSION}-bbcount/
+cp patches-bbcount/eclipser.cc qemu-${VERSION}-bbcount/
 patch -p0 <patches-bbcount/cpu-exec.diff || exit 1
 patch -p0 <patches-bbcount/makefile-target.diff || exit 1
 patch -p0 <patches-bbcount/syscall.diff || exit 1

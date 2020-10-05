@@ -55,20 +55,20 @@ let initialize opt =
   coverageLog <- System.IO.Path.Combine(outDir, ".coverage")
   bitmapLog <- System.IO.Path.Combine(outDir, ".bitmap")
   dbgLog <- System.IO.Path.Combine(outDir, ".debug")
-  set_env("CK_FEED_LOG", System.IO.Path.GetFullPath(branchLog))
-  set_env("CK_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
+  set_env("ECL_BRANCH_LOG", System.IO.Path.GetFullPath(branchLog))
+  set_env("ECL_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
   use bitmapFile = File.Create(bitmapLog)
   bitmapFile.SetLength(0x10000L)
-  set_env("CK_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
+  set_env("ECL_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
   if verbosity >= 2 then
-    set_env("CK_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
+    set_env("ECL_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
   // Initialize C wrapper code.
   initialize_exec ()
   // Disable TranslationBlock chaining feature of QEMU.
   set_env("QEMU_LOG", "nochain")
   // Initialize fork server.
   forkServerEnabled <- true
-  set_env("CK_FORK_SERVER", "1")
+  set_env("ECL_FORK_SERVER", "1")
   let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
   let coverageTracer = selectTracer Coverage opt.Architecture
   let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
@@ -91,7 +91,7 @@ let cleanup () =
 let abandonForkServer () =
   log "Abandon fork server"
   forkServerEnabled <- false
-  set_env("CK_FORK_SERVER", "0")
+  set_env("ECL_FORK_SERVER", "0")
   kill_forkserver ()
 
 (*** File handling utilities ***)
@@ -197,9 +197,9 @@ let private runBranchTracerForked opt stdin addr idx covMeasure =
   signal
 
 let private setEnvForBranch (addr: uint64) (idx: uint32) covMeasure =
-  set_env("CK_FEED_ADDR", sprintf "%016x" addr)
-  set_env("CK_FEED_IDX", sprintf "%016x" idx)
-  set_env("CK_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
+  set_env("ECL_BRANCH_ADDR", sprintf "%016x" addr)
+  set_env("ECL_BRANCH_IDX", sprintf "%016x" idx)
+  set_env("ECL_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
 
 (*** Top-level tracer executor functions ***)
 

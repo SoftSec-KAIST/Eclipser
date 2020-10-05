@@ -16,13 +16,13 @@ typedef uint64_t abi_ulong;
 
 
 static void init_accum_set(char* path, set<abi_ulong> *accum_set);
-extern "C" void chatkey_setup(void);
-extern "C" void chatkey_close_fp(void);
-extern "C" void chatkey_exit(void);
-extern "C" void chatkey_log_bb(abi_ulong node);
+extern "C" void eclipser_setup(void);
+extern "C" void eclipser_detach(void);
+extern "C" void eclipser_exit(void);
+extern "C" void eclipser_log_bb(abi_ulong node);
 
 /* ELF entry point (_start). */
-abi_ulong chatkey_entry_point;
+abi_ulong eclipser_entry_point;
 
 static FILE* coverage_fp;
 static FILE* node_fp;
@@ -61,15 +61,15 @@ static void init_accum_set(char* path, set<abi_ulong> *accum_set) {
   return;
 }
 
-extern "C" void chatkey_setup(void) {
+extern "C" void eclipser_setup(void) {
 
   /* Open file pointers and descriptors early, since if we try to open them in
-   * chatkey_exit(), it gets mixed with stderr & stdout stream. This seems to
+   * eclipser_exit(), it gets mixed with stderr & stdout stream. This seems to
    * be an issue due to incorrect file descriptor management in QEMU code.
    */
-  char * coverage_log = getenv("CK_COVERAGE_LOG");
-  char * node_log = getenv("CK_NODE_LOG");
-  char * edge_log = getenv("CK_EDGE_LOG");
+  char * coverage_log = getenv("ECL_COVERAGE_LOG");
+  char * node_log = getenv("ECL_NODE_LOG");
+  char * edge_log = getenv("ECL_EDGE_LOG");
 
   assert(coverage_log != NULL);
   coverage_fp = fopen(coverage_log, "a");
@@ -97,7 +97,8 @@ extern "C" void chatkey_setup(void) {
 }
 
 // When fork() syscall is encountered, child process should call this function
-extern "C" void chatkey_close_fp(void) {
+// to detach from Eclipser.
+extern "C" void eclipser_detach(void) {
   if (coverage_fp) {
     fclose(coverage_fp);
     coverage_fp = NULL;
@@ -114,12 +115,12 @@ extern "C" void chatkey_close_fp(void) {
   }
 }
 
-extern "C" void chatkey_exit(void) {
+extern "C" void eclipser_exit(void) {
   sigset_t mask;
   unsigned int accum_node_cnt, accum_edge_cnt;
   unsigned int new_node_cnt, new_edge_cnt;
 
-  // Block signals, since we register signal handler that calls chatkey_exit()/
+  // Block signals, since we register signal handler that calls eclipser_exit().
   if (sigfillset(&mask) < 0)
     return;
   if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0)
@@ -151,10 +152,10 @@ extern "C" void chatkey_exit(void) {
   }
 }
 
-extern "C" void chatkey_log_bb(abi_ulong node) {
+extern "C" void eclipser_log_bb(abi_ulong node) {
   abi_ulong edge;
 
-  /* If coverage_fp is NULL, it means that chatkey_setup() is not called yet
+  /* If coverage_fp is NULL, it means that eclipser_setup() is not called yet
    * This happens when QEMU is executing a dynamically linked program.
    */
   if (!coverage_fp || !node_fp || !edge_fp)

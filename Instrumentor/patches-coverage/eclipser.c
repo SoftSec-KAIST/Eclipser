@@ -19,13 +19,13 @@ extern unsigned int afl_forksrv_pid;
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
-void chatkey_setup_before_forkserver(void);
-void chatkey_setup_after_forkserver(void);
-void chatkey_close_fp(void);
-void chatkey_exit(void);
-void chatkey_log_bb(abi_ulong addr);
+void eclipser_setup_before_forkserver(void);
+void eclipser_setup_after_forkserver(void);
+void eclipser_detach(void);
+void eclipser_exit(void);
+void eclipser_log_bb(abi_ulong addr);
 
-abi_ulong chatkey_entry_point; /* ELF entry point (_start) */
+abi_ulong eclipser_entry_point; /* ELF entry point (_start) */
 
 static char * coverage_path = NULL;
 static char * dbg_path = NULL;
@@ -37,19 +37,19 @@ static int found_new_edge = 0;
 static int found_new_path = 0; // TODO. Extend to measure path coverage, too.
 static unsigned char * edge_bitmap = NULL;
 
-void chatkey_setup_before_forkserver(void) {
-  char * bitmap_path = getenv("CK_BITMAP_LOG");
+void eclipser_setup_before_forkserver(void) {
+  char * bitmap_path = getenv("ECL_BITMAP_LOG");
   int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
   edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
   assert(edge_bitmap != (void *) -1);
 
-  coverage_path = getenv("CK_COVERAGE_LOG");
-  dbg_path = getenv("CK_DBG_LOG");
+  coverage_path = getenv("ECL_COVERAGE_LOG");
+  dbg_path = getenv("ECL_DBG_LOG");
 }
 
-void chatkey_setup_after_forkserver(void) {
+void eclipser_setup_after_forkserver(void) {
   /* Open file pointers and descriptors early, since if we try to open them in
-   * chatkey_exit(), it gets mixed with stderr & stdout stream. This seems to
+   * eclipser_exit(), it gets mixed with stderr & stdout stream. This seems to
    * be an issue due to incorrect file descriptor management in QEMU code.
    */
 
@@ -63,8 +63,9 @@ void chatkey_setup_after_forkserver(void) {
   }
 }
 
-// When fork() syscall is encountered, child process should call this function.
-void chatkey_close_fp(void) {
+// When fork() syscall is encountered, child process should call this function
+// to detach from Eclipser.
+void eclipser_detach(void) {
   // Close file pointers, to avoid dumping log twice.
   if (coverage_fp) {
     fclose(coverage_fp);
@@ -85,10 +86,10 @@ void chatkey_close_fp(void) {
     close(TSL_FD);
 }
 
-void chatkey_exit(void) {
+void eclipser_exit(void) {
   sigset_t mask;
 
-  // Block signals, since we register signal handler that calls chatkey_exit()/
+  // Block signals, since we register signal handler that calls eclipser_exit()/
   if (sigfillset(&mask) < 0)
     return;
   if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0)
@@ -111,7 +112,7 @@ void chatkey_exit(void) {
   }
 }
 
-void chatkey_log_bb(abi_ulong addr) {
+void eclipser_log_bb(abi_ulong addr) {
   abi_ulong prev_addr_local;
   abi_ulong edge, hash;
   unsigned int byte_idx, byte_mask;

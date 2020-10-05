@@ -23,8 +23,8 @@
 #define FORKSRV_FD 194
 #define TSL_FD (FORKSRV_FD - 1)
 
-extern abi_ulong chatkey_targ_addr;
-extern uint32_t chatkey_targ_index;
+extern abi_ulong eclipser_targ_addr;
+extern uint32_t eclipser_targ_index;
 extern int measure_coverage;
 
 /* Set in the child process in forkserver mode: */
@@ -58,7 +58,7 @@ static void afl_forkserver(CPUState *cpu) {
   static unsigned char tmp[4];
   uint64_t tmp_input;
 
-  if (atoi(getenv("CK_FORK_SERVER")) != 1) return;
+  if (atoi(getenv("ECL_FORK_SERVER")) != 1) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
@@ -77,8 +77,8 @@ static void afl_forkserver(CPUState *cpu) {
     /* Whoops, parent dead? */
 
     if (read(FORKSRV_FD, &tmp_input, 8) != 8) exit(2);
-    chatkey_targ_addr = (abi_ulong)tmp_input;
-    if (read(FORKSRV_FD, &chatkey_targ_index, 4) != 4) exit(2);
+    eclipser_targ_addr = (abi_ulong)tmp_input;
+    if (read(FORKSRV_FD, &eclipser_targ_index, 4) != 4) exit(2);
     if (read(FORKSRV_FD, &measure_coverage, 4) != 4) exit(2);
 
     /* Establish a channel with child to grab translation commands. We'll

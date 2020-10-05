@@ -29,19 +29,19 @@ extern unsigned int afl_forksrv_pid;
 #define CUMULATIVE_COVERAGE 3
 
 void flush_trace_buffer(void);
-void chatkey_setup_before_forkserver(void);
-void chatkey_setup_after_forkserver(void);
-void chatkey_close_fp(void);
-void chatkey_exit(void);
-void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type);
-void chatkey_log_bb(abi_ulong addr);
+void eclipser_setup_before_forkserver(void);
+void eclipser_setup_after_forkserver(void);
+void eclipser_detach(void);
+void eclipser_exit(void);
+void eclipser_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type);
+void eclipser_log_bb(abi_ulong addr);
 
-abi_ulong chatkey_entry_point = 0; /* ELF entry point (_start) */
-abi_ulong chatkey_curr_addr = 0;
-abi_ulong chatkey_targ_addr = 0;
-uint32_t chatkey_targ_index = 0;
+abi_ulong eclipser_entry_point = 0; /* ELF entry point (_start) */
+abi_ulong eclipser_curr_addr = 0;
+abi_ulong eclipser_targ_addr = 0;
+uint32_t eclipser_targ_index = 0;
 int measure_coverage = 0;
-int chatkey_EP_passed = 0;
+int eclipser_EP_passed = 0;
 
 static int found_new_edge = 0;
 static int found_new_path = 0; // TODO. Extend to measure path coverage, too.
@@ -63,26 +63,26 @@ void flush_trace_buffer(void) {
   fwrite(trace_buffer, len, 1, branch_fp);
 }
 
-void chatkey_setup_before_forkserver(void) {
-  char * bitmap_path = getenv("CK_BITMAP_LOG");
+void eclipser_setup_before_forkserver(void) {
+  char * bitmap_path = getenv("ECL_BITMAP_LOG");
   int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
   edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
   assert(edge_bitmap != (void *) -1);
 
-  coverage_path = getenv("CK_COVERAGE_LOG");
-  branch_path = getenv("CK_FEED_LOG");
+  coverage_path = getenv("ECL_COVERAGE_LOG");
+  branch_path = getenv("ECL_BRANCH_LOG");
 
-  chatkey_EP_passed = 1;
+  eclipser_EP_passed = 1;
 }
 
-void chatkey_setup_after_forkserver(void) {
+void eclipser_setup_after_forkserver(void) {
 
-  assert(getenv("CK_FORK_SERVER") != NULL);
+  assert(getenv("ECL_FORK_SERVER") != NULL);
   // If fork server is enabled, the following data are set during the handshake.
-  if (atoi(getenv("CK_FORK_SERVER")) == 0) {
-    chatkey_targ_addr = strtol(getenv("CK_FEED_ADDR"), NULL, 16);
-    chatkey_targ_index = strtol(getenv("CK_FEED_IDX"), NULL, 16);
-    measure_coverage = atoi(getenv("CK_MEASURE_COV"));
+  if (atoi(getenv("ECL_FORK_SERVER")) == 0) {
+    eclipser_targ_addr = strtol(getenv("ECL_BRANCH_ADDR"), NULL, 16);
+    eclipser_targ_index = strtol(getenv("ECL_BRANCH_IDX"), NULL, 16);
+    measure_coverage = atoi(getenv("ECL_MEASURE_COV"));
   }
 
   if (measure_coverage != IGNORE_COVERAGE) {
@@ -94,8 +94,9 @@ void chatkey_setup_after_forkserver(void) {
   assert(branch_fp != NULL);
 }
 
-// When fork() syscall is encountered, child process should call this function.
-void chatkey_close_fp(void) {
+// When fork() syscall is encountered, child process should call this function
+// to detach from Eclipser.
+void eclipser_detach(void) {
   // Close file pointers, to avoid dumping log twice.
   if (coverage_fp) {
     fclose(coverage_fp);
@@ -116,11 +117,11 @@ void chatkey_close_fp(void) {
   }
 }
 
-void chatkey_exit(void) {
+void eclipser_exit(void) {
   abi_ulong nil = 0;
   sigset_t mask;
 
-  // Block signals, since we register signal handler that calls chatkey_exit()
+  // Block signals, since we register signal handler that calls eclipser_exit()
   if (sigfillset(&mask) < 0)
     return;
   if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0)
@@ -146,30 +147,30 @@ void chatkey_exit(void) {
 }
 
 /* Recall that in 64bit we already pushed rdi/rsi/rdx before calling
- * chatkey_trampline().
+ * eclipser_trampline().
  */
-asm (".global chatkey_trampoline                        \t\n\
-      .type chatkey_trampoline, @function               \t\n\
-      chatkey_trampoline:                               \t\n\
-      push %rax                                         \t\n\
-      push %rcx                                         \t\n\
-      push %r8                                          \t\n\
-      push %r9                                          \t\n\
-      push %r10                                         \t\n\
-      push %r11                                         \t\n\
-      call chatkey_log_branch;                        \t\n\
-      pop %r11                                          \t\n\
-      pop %r10                                          \t\n\
-      pop %r9                                           \t\n\
-      pop %r8                                           \t\n\
-      pop %rcx                                          \t\n\
-      pop %rax                                          \t\n\
-      ret                                               \t\n\
-      .size chatkey_trampoline, . - chatkey_trampoline  \t\n\
+asm (".global eclipser_trampoline                         \t\n\
+      .type eclipser_trampoline, @function                \t\n\
+      eclipser_trampoline:                                \t\n\
+      push %rax                                           \t\n\
+      push %rcx                                           \t\n\
+      push %r8                                            \t\n\
+      push %r9                                            \t\n\
+      push %r10                                           \t\n\
+      push %r11                                           \t\n\
+      call eclipser_log_branch;                           \t\n\
+      pop %r11                                            \t\n\
+      pop %r10                                            \t\n\
+      pop %r9                                             \t\n\
+      pop %r8                                             \t\n\
+      pop %rcx                                            \t\n\
+      pop %rax                                            \t\n\
+      ret                                                 \t\n\
+      .size eclipser_trampoline, . - eclipser_trampoline  \t\n\
       ");
 
-void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) {
-
+void eclipser_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
+{
   abi_ulong oprnd1_truncated, oprnd2_truncated;
   unsigned char operand_type = type & 0x3f;
   unsigned char compare_type = type & 0xc0;
@@ -178,10 +179,10 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
   if (!branch_fp)
     return;
 
-  if (chatkey_targ_addr) {
+  if (eclipser_targ_addr) {
     /* We're in the mode that traces cmp/test at a specific address */
-    if (chatkey_curr_addr == chatkey_targ_addr &&
-        ++targ_hit_count == chatkey_targ_index) { // Note that index starts from 1.
+    if (eclipser_curr_addr == eclipser_targ_addr &&
+        ++targ_hit_count == eclipser_targ_index) { // Index starts from 1.
       if (operand_type == MO_8) {
         oprnd1_truncated = oprnd1 & 0xff;
         oprnd2_truncated = oprnd2 & 0xff;
@@ -213,7 +214,7 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
       }
 
       type = compare_type | operand_size;
-      fwrite(&chatkey_curr_addr, sizeof(abi_ulong), 1, branch_fp);
+      fwrite(&eclipser_curr_addr, sizeof(abi_ulong), 1, branch_fp);
       fwrite(&type, sizeof(unsigned char), 1, branch_fp);
       fwrite(&oprnd1_truncated, operand_size, 1, branch_fp);
       fwrite(&oprnd2_truncated, operand_size, 1, branch_fp);
@@ -223,75 +224,97 @@ void chatkey_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type) 
          * we are interested in branch distance only, and not in exit signal or
          * coverage gain. In these case, halt the execution here to save time.
          */
-        chatkey_exit();
+        eclipser_exit();
         exit(0);
       }
     }
   } else if (trace_count++ < MAX_TRACE_LEN) {
     /* We're in the mode that traces all the cmp/test instructions */
+    // First log the current address.
+    * (abi_ulong*) buf_ptr = eclipser_curr_addr;
+    buf_ptr += sizeof(abi_ulong);
     if (operand_type == MO_8) {
       oprnd1_truncated = oprnd1 & 0xff;
       oprnd2_truncated = oprnd2 & 0xff;
       operand_size = 1;
-      * (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char)) = oprnd1_truncated;
-      * (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char) + operand_size) = oprnd2_truncated;
+      type = compare_type | operand_size;
+      *buf_ptr = type;
+      buf_ptr += sizeof(unsigned char);
+      *buf_ptr = oprnd1_truncated;
+      buf_ptr += operand_size;
+      *buf_ptr = oprnd2_truncated;
+      buf_ptr += operand_size;
     } else if (operand_type == MO_16) {
       oprnd1_truncated = oprnd1 & 0xffff;
       oprnd2_truncated = oprnd2 & 0xffff;
       operand_size = 2;
-      * (unsigned short*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char)) = oprnd1_truncated;
-      * (unsigned short*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char) + operand_size) = oprnd2_truncated;
+      type = compare_type | operand_size;
+      *buf_ptr = type;
+      buf_ptr += sizeof(unsigned char);
+      * (unsigned short *) (buf_ptr) = oprnd1_truncated;
+      buf_ptr += operand_size;
+      * (unsigned short *) (buf_ptr) = oprnd2_truncated;
+      buf_ptr += operand_size;
     }
 #ifdef TARGET_X86_64
     else if (operand_type == MO_32) {
       oprnd1_truncated = oprnd1 & 0xffffffff;
       oprnd2_truncated = oprnd2 & 0xffffffff;
       operand_size = 4;
-      * (unsigned int*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char)) = oprnd1_truncated;
-      * (unsigned int*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char) + operand_size) = oprnd2_truncated;
+      type = compare_type | operand_size;
+      *buf_ptr = type;
+      buf_ptr += sizeof(unsigned char);
+      * (unsigned int *) (buf_ptr) = oprnd1_truncated;
+      buf_ptr += operand_size;
+      * (unsigned int *) (buf_ptr) = oprnd2_truncated;
+      buf_ptr += operand_size;
     } else if (operand_type == MO_64) {
       oprnd1_truncated = oprnd1;
       oprnd2_truncated = oprnd2;
       operand_size = 8;
-      * (uint64_t*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char)) = oprnd1_truncated;
-      * (uint64_t*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char) + operand_size) = oprnd2_truncated;
+      type = compare_type | operand_size;
+      *buf_ptr = type;
+      buf_ptr += sizeof(unsigned char);
+      * (uint64_t *) (buf_ptr) = oprnd1_truncated;
+      buf_ptr += operand_size;
+      * (uint64_t *) (buf_ptr) = oprnd2_truncated;
+      buf_ptr += operand_size;
     }
 #else
     else if (operand_type == MO_32) {
       oprnd1_truncated = oprnd1;
       oprnd2_truncated = oprnd2;
       operand_size = 4;
-      * (unsigned int*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char)) = oprnd1_truncated;
-      * (unsigned int*) (buf_ptr + sizeof(abi_ulong) + sizeof(unsigned char) + operand_size) = oprnd2_truncated;
+      type = compare_type | operand_size;
+      *buf_ptr = type;
+      buf_ptr += sizeof(unsigned char);
+      * (unsigned int*) (buf_ptr) = oprnd1_truncated;
+      buf_ptr += operand_size;
+      * (unsigned int*) (buf_ptr) = oprnd2_truncated;
+      buf_ptr += operand_size;
     }
 #endif
     else {
       assert(0);
     }
 
-    type = compare_type | operand_size;
-
-    * (abi_ulong*) buf_ptr = chatkey_curr_addr;
-    * (buf_ptr + sizeof(abi_ulong)) = type;
-    buf_ptr += sizeof(abi_ulong) + sizeof(unsigned char) + 2 * operand_size;
-
   } else {
     /* We're in the mode that traces all the cmp/test instructions, and trace
      * limit has exceeded. Abort tracing. */
-    chatkey_exit();
+    eclipser_exit();
     exit(0);
   }
 }
 
-void chatkey_log_bb(abi_ulong addr) {
+void eclipser_log_bb(abi_ulong addr) {
   abi_ulong prev_addr_local;
   abi_ulong edge, hash;
   unsigned int byte_idx, byte_mask;
   unsigned char old_byte, new_byte;
 
-  // Make sure that 'chatkey_curr_addr' and 'prev_addr' are always updated even
+  // Make sure that 'eclipser_curr_addr' and 'prev_addr' are always updated even
   // if we just return.
-  chatkey_curr_addr = addr;
+  eclipser_curr_addr = addr;
   prev_addr_local = prev_addr;
   prev_addr = addr;
 
