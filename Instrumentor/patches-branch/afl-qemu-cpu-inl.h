@@ -37,7 +37,8 @@ unsigned int afl_forksrv_pid;
 static void afl_forkserver(CPUState*);
 
 static void afl_wait_tsl(CPUState*, int);
-static void afl_request_tsl(target_ulong, target_ulong, uint64_t);
+static void afl_request_tsl(target_ulong, target_ulong, uint64_t,
+                            TranslationBlock*, int);
 
 /* Data structure passed around by the translate handlers: */
 
@@ -45,6 +46,14 @@ struct afl_tsl {
   target_ulong pc;
   target_ulong cs_base;
   uint64_t flags;
+  int chained;
+};
+
+struct afl_chain {
+  target_ulong last_pc;
+  target_ulong last_cs_base;
+  uint64_t last_flags;
+  int tb_exit;
 };
 
 /*************************
@@ -126,19 +135,30 @@ static void afl_forkserver(CPUState *cpu) {
    we tell the parent to mirror the operation, so that the next fork() has a
    cached copy. */
 
-static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
-
+static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags,
+                            TranslationBlock* last_tb, int tb_exit)  {
   struct afl_tsl t;
+  struct afl_chain c;
 
   if (!afl_fork_child) return;
 
   t.pc      = pc;
   t.cs_base = cb;
   t.flags   = flags;
+  t.chained = (last_tb != NULL);
 
   if (write(TSL_FD, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
     return;
 
+  if (last_tb) {
+    c.last_pc      = last_tb->pc;
+    c.last_cs_base = last_tb->cs_base;
+    c.last_flags   = last_tb->flags;
+    c.tb_exit      = tb_exit;
+
+    if (write(TSL_FD, &c, sizeof(struct afl_chain)) != sizeof(struct afl_chain))
+      return;
+  }
 }
 
 /* This is the other side of the same channel. Since timeouts are handled by
@@ -147,7 +167,8 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
 static void afl_wait_tsl(CPUState *cpu, int fd) {
 
   struct afl_tsl t;
-  TranslationBlock *tb;
+  struct afl_chain c;
+  TranslationBlock *tb, *last_tb;
 
   while (1) {
 
@@ -161,11 +182,24 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
     if(!tb) {
       mmap_lock();
       tb_lock();
-      tb_gen_code(cpu, t.pc, t.cs_base, t.flags, 0);
+      tb = tb_gen_code(cpu, t.pc, t.cs_base, t.flags, 0);
       mmap_unlock();
       tb_unlock();
     }
 
+    if (t.chained) {
+      if (read(fd, &c, sizeof(struct afl_chain)) != sizeof(struct afl_chain))
+        break;
+
+      last_tb = tb_htable_lookup(cpu, c.last_pc, c.last_cs_base, c.last_flags);
+      if (last_tb) {
+        tb_lock();
+        if (!tb->invalid) {
+          tb_add_jump(last_tb, c.tb_exit, tb);
+        }
+        tb_unlock();
+      }
+    }
   }
 
   close(fd);

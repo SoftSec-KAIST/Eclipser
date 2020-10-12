@@ -1,6 +1,6 @@
---- qemu-2.10.0-branch/accel/tcg/cpu-exec.c.orig	2020-10-03 21:06:01.813430015 -0700
-+++ qemu-2.10.0-branch/accel/tcg/cpu-exec.c	2020-10-03 21:05:57.233402733 -0700
-@@ -36,6 +36,12 @@
+--- qemu-2.10.0-branch/accel/tcg/cpu-exec.c.orig	2020-10-12 02:23:49.165865730 -0700
++++ qemu-2.10.0-branch/accel/tcg/cpu-exec.c	2020-10-12 02:23:48.489872694 -0700
+@@ -36,6 +36,11 @@
  #include "sysemu/cpus.h"
  #include "sysemu/replay.h"
  
@@ -8,12 +8,11 @@
 +extern abi_ulong eclipser_entry_point; /* ELF entry point (_start) */
 +extern void eclipser_setup_before_forkserver(void);
 +extern void eclipser_setup_after_forkserver(void);
-+extern void eclipser_log_bb(abi_ulong addr);
 +
  /* -icount align implementation. */
  
  typedef struct SyncClocks {
-@@ -143,6 +149,17 @@
+@@ -143,6 +148,16 @@
      TranslationBlock *last_tb;
      int tb_exit;
      uint8_t *tb_ptr = itb->tc_ptr;
@@ -27,15 +26,39 @@
 +      afl_forkserver(cpu);
 +      eclipser_setup_after_forkserver();
 +    }
-+    eclipser_log_bb(entry_pc);
  
      qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
                             "Trace %p [%d: " TARGET_FMT_lx "] %s\n",
-@@ -365,6 +382,7 @@
+@@ -337,7 +352,7 @@
+     TranslationBlock *tb;
+     target_ulong cs_base, pc;
+     uint32_t flags;
+-    bool have_tb_lock = false;
++    bool have_tb_lock = false, translated = false, chained = false;
+ 
+     /* we record a subset of the CPU state. It will
+        always be the same before a given translated block
+@@ -365,6 +380,7 @@
              if (!tb) {
                  /* if no translated code available, then translate it now */
                  tb = tb_gen_code(cpu, pc, cs_base, flags, 0);
-+                afl_request_tsl(pc, cs_base, flags);
++                translated = true;
              }
  
              mmap_unlock();
+@@ -390,11 +406,15 @@
+         }
+         if (!tb->invalid) {
+             tb_add_jump(last_tb, tb_exit, tb);
++            chained = true;
+         }
+     }
+     if (have_tb_lock) {
+         tb_unlock();
+     }
++    if (translated || chained) {
++        afl_request_tsl(pc, cs_base, flags, chained ? last_tb : NULL, tb_exit);
++    }
+     return tb;
+ }
+ 

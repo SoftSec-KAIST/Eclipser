@@ -132,6 +132,8 @@ cp patches-coverage/eclipser.c qemu-${VERSION}-coverage/accel/tcg/
 patch -p0 <patches-coverage/cpu-exec.diff || exit 1
 patch -p0 <patches-coverage/makefile-objs.diff || exit 1
 patch -p0 <patches-coverage/syscall.diff || exit 1
+patch -p0 <patches-coverage/target-helper.diff || exit 1
+patch -p0 <patches-coverage/target-translate.diff || exit 1
 
 echo "[+] Patching done."
 
@@ -152,7 +154,8 @@ patch -p0 <patches-branch/optimize.diff || exit 1
 patch -p0 <patches-branch/tcg-op.diff || exit 1
 patch -p0 <patches-branch/tcg-opc.diff || exit 1
 patch -p0 <patches-branch/tcg-target.diff || exit 1
-patch -p0 <patches-branch/translate.diff || exit 1
+patch -p0 <patches-branch/target-helper.diff || exit 1
+patch -p0 <patches-branch/target-translate.diff || exit 1
 
 echo "[+] Patching done."
 

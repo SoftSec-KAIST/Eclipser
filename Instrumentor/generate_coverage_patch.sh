@@ -26,4 +26,16 @@ diff -Naur qemu-${VERSION}-coverage/linux-user/syscall.c.orig \
            qemu-${VERSION}-coverage/linux-user/syscall.c \
            > patches-coverage/syscall.diff
 
+cp qemu-${VERSION}/target/i386/helper.h \
+   qemu-${VERSION}-coverage/target/i386/helper.h.orig
+diff -Naur qemu-${VERSION}-coverage/target/i386/helper.h.orig \
+           qemu-${VERSION}-coverage/target/i386/helper.h \
+           > patches-coverage/target-helper.diff
+
+cp qemu-${VERSION}/target/i386/translate.c \
+   qemu-${VERSION}-coverage/target/i386/translate.c.orig
+diff -Naur qemu-${VERSION}-coverage/target/i386/translate.c.orig \
+           qemu-${VERSION}-coverage/target/i386/translate.c \
+           > patches-coverage/target-translate.diff
+
 rm -rf qemu-${VERSION}-coverage

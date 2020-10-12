@@ -1,5 +1,5 @@
---- qemu-2.10.0-branch/tcg/i386/tcg-target.inc.c.orig	2020-10-03 21:06:01.985431043 -0700
-+++ qemu-2.10.0-branch/tcg/i386/tcg-target.inc.c	2020-10-03 21:06:00.241420625 -0700
+--- qemu-2.10.0-branch/tcg/i386/tcg-target.inc.c.orig	2020-10-12 02:23:49.181865568 -0700
++++ qemu-2.10.0-branch/tcg/i386/tcg-target.inc.c	2020-10-12 02:23:49.089866514 -0700
 @@ -24,6 +24,10 @@
  
  #include "tcg-be-ldst.h"

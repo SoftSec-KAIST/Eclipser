@@ -34,7 +34,7 @@ void eclipser_setup_after_forkserver(void);
 void eclipser_detach(void);
 void eclipser_exit(void);
 void eclipser_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type);
-void eclipser_log_bb(abi_ulong addr);
+void helper_eclipser_log_bb(abi_ulong addr);
 
 abi_ulong eclipser_entry_point = 0; /* ELF entry point (_start) */
 abi_ulong eclipser_curr_addr = 0;
@@ -306,7 +306,7 @@ void eclipser_log_branch(abi_ulong oprnd1, abi_ulong oprnd2, unsigned char type)
   }
 }
 
-void eclipser_log_bb(abi_ulong addr) {
+void helper_eclipser_log_bb(abi_ulong addr) {
   abi_ulong prev_addr_local;
   abi_ulong edge, hash;
   unsigned int byte_idx, byte_mask;

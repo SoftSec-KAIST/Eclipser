@@ -64,8 +64,6 @@ let initialize opt =
     set_env("ECL_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
   // Initialize C wrapper code.
   initialize_exec ()
-  // Disable TranslationBlock chaining feature of QEMU.
-  set_env("QEMU_LOG", "nochain")
   // Initialize fork server.
   forkServerEnabled <- true
   set_env("ECL_FORK_SERVER", "1")

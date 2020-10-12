@@ -23,7 +23,7 @@ void eclipser_setup_before_forkserver(void);
 void eclipser_setup_after_forkserver(void);
 void eclipser_detach(void);
 void eclipser_exit(void);
-void eclipser_log_bb(abi_ulong addr);
+void helper_eclipser_log_bb(abi_ulong addr);
 
 abi_ulong eclipser_entry_point; /* ELF entry point (_start) */
 
@@ -112,7 +112,7 @@ void eclipser_exit(void) {
   }
 }
 
-void eclipser_log_bb(abi_ulong addr) {
+void helper_eclipser_log_bb(abi_ulong addr) {
   abi_ulong prev_addr_local;
   abi_ulong edge, hash;
   unsigned int byte_idx, byte_mask;

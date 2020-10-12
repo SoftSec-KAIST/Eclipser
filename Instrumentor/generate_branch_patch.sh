@@ -50,10 +50,16 @@ diff -Naur qemu-${VERSION}-branch/tcg/i386/tcg-target.inc.c.orig \
            qemu-${VERSION}-branch/tcg/i386/tcg-target.inc.c \
            > patches-branch/tcg-target.diff
 
+cp qemu-${VERSION}/target/i386/helper.h \
+   qemu-${VERSION}-branch/target/i386/helper.h.orig
+diff -Naur qemu-${VERSION}-branch/target/i386/helper.h.orig \
+           qemu-${VERSION}-branch/target/i386/helper.h \
+           > patches-branch/target-helper.diff
+
 cp qemu-${VERSION}/target/i386/translate.c \
    qemu-${VERSION}-branch/target/i386/translate.c.orig
 diff -Naur qemu-${VERSION}-branch/target/i386/translate.c.orig \
            qemu-${VERSION}-branch/target/i386/translate.c \
-           > patches-branch/translate.diff
+           > patches-branch/target-translate.diff
 
 rm -rf qemu-${VERSION}-branch

@@ -21,6 +21,8 @@ export_coverage_patch() {
   cp qemu-${VERSION}-coverage/accel/tcg/cpu-exec.c $TARG_DIR/accel/tcg/cpu-exec.c
   cp qemu-${VERSION}-coverage/accel/tcg/Makefile.objs $TARG_DIR/accel/tcg/Makefile.objs
   cp qemu-${VERSION}-coverage/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
+  cp qemu-${VERSION}-coverage/target/i386/helper.h $TARG_DIR/target/i386/helper.h
+  cp qemu-${VERSION}-coverage/target/i386/translate.c $TARG_DIR/target/i386/translate.c
 }
 
 export_branch_patch() {
@@ -35,6 +37,7 @@ export_branch_patch() {
   cp qemu-${VERSION}-branch/tcg/tcg-op.h $TARG_DIR/tcg/tcg-op.h
   cp qemu-${VERSION}-branch/tcg/tcg-opc.h $TARG_DIR/tcg/tcg-opc.h
   cp qemu-${VERSION}-branch/tcg/i386/tcg-target.inc.c  $TARG_DIR/tcg/i386/tcg-target.inc.c
+  cp qemu-${VERSION}-branch/target/i386/helper.h $TARG_DIR/target/i386/helper.h
   cp qemu-${VERSION}-branch/target/i386/translate.c $TARG_DIR/target/i386/translate.c
 }
 
@@ -79,6 +82,8 @@ cp patches-coverage/eclipser.c qemu-${VERSION}-coverage/accel/tcg/
 patch -p0 <patches-coverage/cpu-exec.diff || exit 1
 patch -p0 <patches-coverage/makefile-objs.diff || exit 1
 patch -p0 <patches-coverage/syscall.diff || exit 1
+patch -p0 <patches-coverage/target-helper.diff || exit 1
+patch -p0 <patches-coverage/target-translate.diff || exit 1
 
 export_coverage_patch "x86"
 export_coverage_patch "x64"
@@ -102,7 +107,8 @@ patch -p0 <patches-branch/optimize.diff || exit 1
 patch -p0 <patches-branch/tcg-op.diff || exit 1
 patch -p0 <patches-branch/tcg-opc.diff || exit 1
 patch -p0 <patches-branch/tcg-target.diff || exit 1
-patch -p0 <patches-branch/translate.diff || exit 1
+patch -p0 <patches-branch/target-helper.diff || exit 1
+patch -p0 <patches-branch/target-translate.diff || exit 1
 
 export_branch_patch "x86"
 export_branch_patch "x64"
