@@ -47,6 +47,20 @@ let mutable bitmapLog = ""
 let mutable dbgLog = ""
 let mutable forkServerEnabled = false
 
+let private initializeForkServer opt =
+  forkServerEnabled <- true
+  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let coverageTracer = selectTracer Coverage opt.Architecture
+  let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
+  let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
+  if pidCoverage = -1 then
+    failwith "Failed to initialize fork server for coverage tracer"
+  let branchTracer = selectTracer Branch opt.Architecture
+  let args = Array.append [|branchTracer; opt.TargetProg|] cmdLine
+  let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
+  if pidBranch = -1 then
+    failwith "Failed to initialize fork server for branch tracer"
+
 let initialize opt =
   let outDir = opt.OutDir
   let verbosity = opt.Verbosity
@@ -62,22 +76,12 @@ let initialize opt =
   set_env("ECL_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
   if verbosity >= 2 then
     set_env("ECL_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
-  // Initialize C wrapper code.
   initialize_exec ()
-  // Initialize fork server.
-  forkServerEnabled <- true
-  set_env("ECL_FORK_SERVER", "1")
-  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
-  let coverageTracer = selectTracer Coverage opt.Architecture
-  let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
-  let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
-  if pidCoverage = -1 then
-    failwith "Failed to initialize fork server for coverage tracer"
-  let branchTracer = selectTracer Branch opt.Architecture
-  let args = Array.append [|branchTracer; opt.TargetProg|] cmdLine
-  let pidBranch = init_forkserver_branch (args.Length, args, opt.ExecTimeout)
-  if pidBranch = -1 then
-    failwith "Failed to initialize fork server for branch tracer"
+  if opt.ForkServer then
+    set_env("ECL_FORK_SERVER", "1")
+    initializeForkServer opt
+  else
+    set_env("ECL_FORK_SERVER", "0")
 
 let cleanup () =
   if forkServerEnabled then kill_forkserver ()

@@ -13,6 +13,7 @@ type FuzzerCLI =
   | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
   | [<Unique>] ExecTimeout of millisec:uint64
   | [<Unique>] Architecture of string
+  | [<Unique>] NoForkServer
   // Options related to seed.
   | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
   | [<Unique>] Arg of string
@@ -32,6 +33,7 @@ with
       | Program _ -> "Target program for test case generation with fuzzing."
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default:500)"
       | Architecture _ -> "Target program architecture (X86|X64) (default:X64)"
+      | NoForkServer -> "Do not use fork server for target program execution"
       // Options related to seed.
       | InputDir _ -> "Directory containing initial seeds."
       | Arg _ -> "Command-line argument of program under test."
@@ -52,6 +54,7 @@ type FuzzOption = {
   TargetProg        : string
   ExecTimeout       : uint64
   Architecture      : Arch
+  ForkServer        : bool
   // Options related to seed.
   InputDir          : string
   Arg               : string
@@ -75,6 +78,7 @@ let parseFuzzOption (args: string array) =
     ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DEF_EXEC_TO)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString
+    ForkServer = not (r.Contains(<@ NoForkServer @>)) // Enable by default.
     // Options related to seed.
     InputDir = r.GetResult(<@ InputDir @>, defaultValue = "")
     Arg = r.GetResult (<@ Arg @>, defaultValue = "")
