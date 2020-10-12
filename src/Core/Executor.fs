@@ -6,6 +6,8 @@ open System.Runtime.InteropServices
 open Utils
 open Options
 
+let private BITMAP_SIZE = 0x10000L
+
 let private WHITES = [| ' '; '\t'; '\n' |]
 
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
@@ -72,7 +74,7 @@ let initialize opt =
   set_env("ECL_BRANCH_LOG", System.IO.Path.GetFullPath(branchLog))
   set_env("ECL_COVERAGE_LOG", System.IO.Path.GetFullPath(coverageLog))
   use bitmapFile = File.Create(bitmapLog)
-  bitmapFile.SetLength(0x10000L)
+  bitmapFile.SetLength(BITMAP_SIZE)
   set_env("ECL_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
   if verbosity >= 2 then
     set_env("ECL_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))

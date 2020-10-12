@@ -22,6 +22,8 @@ extern unsigned int afl_forksrv_pid;
 #define FORKSRV_FD 198
 #define TSL_FD (FORKSRV_FD - 1)
 
+#define BITMAP_SIZE (0x10000)
+#define BITMAP_MASK (BITMAP_SIZE - 1)
 #define MAX_TRACE_LEN (100000)
 
 #define IGNORE_COVERAGE 1
@@ -66,7 +68,7 @@ void flush_trace_buffer(void) {
 void eclipser_setup_before_forkserver(void) {
   char * bitmap_path = getenv("ECL_BITMAP_LOG");
   int bitmap_fd = open(bitmap_path, O_RDWR | O_CREAT, 0644);
-  edge_bitmap = (unsigned char*) mmap(NULL, 0x10000, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
+  edge_bitmap = (unsigned char*) mmap(NULL, BITMAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, bitmap_fd, 0);
   assert(edge_bitmap != (void *) -1);
 
   coverage_path = getenv("ECL_COVERAGE_LOG");
@@ -112,7 +114,7 @@ void eclipser_detach(void) {
     close(TSL_FD);
 
   if (edge_bitmap) {
-    munmap(edge_bitmap, 0x10000);
+    munmap(edge_bitmap, BITMAP_SIZE);
     edge_bitmap = NULL;
   }
 }
@@ -141,7 +143,7 @@ void eclipser_exit(void) {
   }
 
   if (edge_bitmap) {
-    munmap(edge_bitmap, 0x10000);
+    munmap(edge_bitmap, BITMAP_SIZE);
     edge_bitmap = NULL;
   }
 }
@@ -329,7 +331,7 @@ void helper_eclipser_log_bb(abi_ulong addr) {
 
   // Update bitmap.
   hash = (edge >> 4) ^ (edge << 8);
-  byte_idx = (hash >> 3) & 0xffff;
+  byte_idx = (hash >> 3) & BITMAP_MASK;
   byte_mask = 1 << (hash & 0x7); // Use the lowest 3 bits to shift
   old_byte = edge_bitmap[byte_idx];
   new_byte = old_byte | byte_mask;
