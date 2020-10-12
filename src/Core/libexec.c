@@ -22,7 +22,6 @@
 #include <signal.h>
 #include <errno.h>
 #include <dlfcn.h>
-#include <pty.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
@@ -38,14 +37,10 @@ static pid_t branch_forksrv_pid;
 static int branch_fsrv_ctl_fd, branch_fsrv_st_fd;
 
 static pid_t child_pid = 0;
-static int pty_fd;
-static int pty_flag;
 static int timeout_flag;
 static int non_fork_stdin_fd;
 static int coverage_stdin_fd;
 static int branch_stdin_fd;
-
-pid_t (*sym_forkpty)(int *, char *, const struct termios*, const struct winsize *);
 
 void error_exit(char* msg) {
     perror(msg);
@@ -111,8 +106,6 @@ void initialize_exec(void) {
     struct sigaction sa;
     void* handle = dlopen("libutil.so.1", RTLD_LAZY);
 
-    sym_forkpty = (pid_t (*)(int *, char*, const struct termios*, const struct winsize*))dlsym(handle, "forkpty");
-
     sa.sa_flags     = SA_RESTART;
     sa.sa_sigaction = NULL;
 
@@ -135,8 +128,6 @@ int waitchild(pid_t pid, uint64_t timeout)
       perror("[Warning] waitpid() : ");
 
     alarm(0); // Cancle pending alarm
-    if (pty_flag)
-        close(pty_fd);
 
     if ( WIFEXITED( childstatus ) ) return 0;
 
@@ -152,70 +143,34 @@ int waitchild(pid_t pid, uint64_t timeout)
     }
 }
 
-void nonblocking_stdin() {
-    int flags;
-    if ((flags = fcntl(0, F_GETFL, 0)) == -1)
-      flags = 0;
-    if (fcntl(0, F_SETFL, flags | O_NONBLOCK) == -1) {
-      perror("fcntl");
-      return;
-    }
-}
-
-void term_setting(int pty_fd) {
-    struct termios newtio;
-
-    tcgetattr(pty_fd, &newtio);
-    newtio.c_lflag &= ~ICANON & ~ECHO;
-    newtio.c_cc[VINTR]    = 0;     /* Ctrl-c */
-    newtio.c_cc[VQUIT]    = 0;     /* Ctrl-\ */
-    newtio.c_cc[VSUSP]    = 0;     /* Ctrl-z */
-    tcsetattr(pty_fd, TCSADRAIN, &newtio);
-}
-
-int exec(int argc, char **args, int stdin_size, char *stdin_data, uint64_t timeout, int use_pty) {
+int exec(int argc, char **args, int stdin_size, char *stdin_data, uint64_t timeout) {
     int i, devnull, ret;
-    char **argv = (char **)malloc( sizeof(char*) * (argc + 1) );
+    char **argv = (char **)malloc(sizeof(char*) * (argc + 1));
 
     if (!argv) error_exit( "args malloc" );
 
-    for (i = 0; i<argc; i++)
+    for (i = 0; i<argc; i++) {
         argv[i] = args[i];
+    }
     argv[i] = 0;
 
-    if (use_pty) {
-        pty_flag = 1;
-        child_pid = sym_forkpty(&pty_fd, NULL, NULL, NULL);
-    } else {
-        pty_flag = 0;
-        child_pid = vfork();
-    }
+    child_pid = vfork();
     if (child_pid == 0) {
-        devnull = open( "/dev/null", O_RDWR );
-        if ( devnull < 0 ) error_exit( "devnull open" );
+        devnull = open("/dev/null", O_RDWR);
+        if ( devnull < 0 ) error_exit("devnull open");
         dup2(devnull, 1);
         dup2(devnull, 2);
         close(devnull);
 
-        if (pty_flag) {
-            nonblocking_stdin();
-        } else {
-            open_stdin_fd(&non_fork_stdin_fd);
-            write_stdin(non_fork_stdin_fd, stdin_size, stdin_data);
-            dup2(non_fork_stdin_fd, 0);
-            // We already wrote stdin_data and redirected it, so OK to close
-            close(non_fork_stdin_fd);
-        }
+        open_stdin_fd(&non_fork_stdin_fd);
+        write_stdin(non_fork_stdin_fd, stdin_size, stdin_data);
+        dup2(non_fork_stdin_fd, 0);
+        // We already wrote stdin_data and redirected it, so OK to close
+        close(non_fork_stdin_fd);
 
         execv(argv[0], argv);
         exit(-1);
     } else if (child_pid > 0) {
-        if (pty_flag) {
-            term_setting(pty_fd);
-            if(write(pty_fd, stdin_data, stdin_size) != stdin_size)
-                error_exit("exec() : write(pty_fd, ...)");
-        }
-
         free(argv);
     } else {
         error_exit("fork");
@@ -370,7 +325,6 @@ int exec_fork_coverage(uint64_t timeout, int stdin_size, char *stdin_data) {
     static struct itimerval it;
     static unsigned char tmp[4];
 
-    /* TODO : what if we want to use pseudo-terminal? */
     write_stdin(coverage_stdin_fd, stdin_size, stdin_data);
 
     if ((res = write(coverage_fsrv_ctl_fd, tmp, 4)) != 4) {

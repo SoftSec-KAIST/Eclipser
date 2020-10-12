@@ -16,7 +16,7 @@ type Tracer = Coverage | Branch | BBCount
 [<DllImport("libexec.dll")>] extern int init_forkserver_coverage (int argc, string[] argv, uint64 timeout)
 [<DllImport("libexec.dll")>] extern int init_forkserver_branch (int argc, string[] argv, uint64 timeout)
 [<DllImport("libexec.dll")>] extern void kill_forkserver ()
-[<DllImport("libexec.dll")>] extern Signal exec (int argc, string[] argv, int stdin_size, byte[] stdin_data, uint64 timeout, bool use_pty)
+[<DllImport("libexec.dll")>] extern Signal exec (int argc, string[] argv, int stdin_size, byte[] stdin_data, uint64 timeout)
 [<DllImport("libexec.dll")>] extern Signal exec_fork_coverage (uint64 timeout, int stdin_size, byte[] stdin_data)
 [<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data, uint64 targ_addr, uint32 targ_index, int measure_cov)
 
@@ -106,12 +106,12 @@ let private setupFile seed =
 let private prepareStdIn seed =
   match seed.Source with
   | StdInput -> Seed.concretize seed
-  | FileInput filePath -> [| |]
+  | FileInput _ -> [| |]
 
 (*** Tracer result parsing functions ***)
 
-/// TODO. Currently we only support edge coverage gain. Will extend the system
-/// to support path coverage gain if needed.
+// TODO. Currently we only support edge coverage gain. Will extend the system
+// to support path coverage gain if needed.
 let private parseCoverage filename =
   match readAllLines filename with
   | [newEdgeFlag; _] -> if int newEdgeFlag = 1 then NewEdge else NoGain
@@ -172,12 +172,11 @@ let private tryReadBranchInfo opt filename tryVal =
 let private runTracer tracerType opt (stdin: byte array) =
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
-  let usePty = opt.UsePty
   let tracer = selectTracer tracerType opt.Architecture
   let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
   let args = Array.append [|tracer; targetProg|] cmdLine
   let argc = args.Length
-  exec(argc, args, stdin.Length, stdin, timeout, usePty)
+  exec(argc, args, stdin.Length, stdin, timeout)
 
 let private runCoverageTracerForked opt stdin =
   let timeout = opt.ExecTimeout
@@ -249,9 +248,8 @@ let nativeExecute opt seed =
   setupFile seed
   let stdin = prepareStdIn seed
   let timeout = opt.ExecTimeout
-  let usePty = opt.UsePty
   let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
   let args = Array.append [| targetProg |] cmdLine
   let argc = args.Length
-  exec(argc, args, stdin.Length, stdin, timeout, usePty)
+  exec(argc, args, stdin.Length, stdin, timeout)
 

@@ -12,7 +12,6 @@ type FuzzerCLI =
   // Options related to program execution.
   | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
   | [<Unique>] ExecTimeout of millisec:uint64
-  | [<Unique>] UsePty
   | [<Unique>] Architecture of string
   // Options related to seed.
   | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
@@ -32,7 +31,6 @@ with
       // Options related to program execution.
       | Program _ -> "Target program for test case generation with fuzzing."
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default:500)"
-      | UsePty _ -> "Use pseudo tty for standard input"
       | Architecture _ -> "Target program architecture (X86|X64) (default:X64)"
       // Options related to seed.
       | InputDir _ -> "Directory containing initial seeds."
@@ -53,7 +51,6 @@ type FuzzOption = {
   // Options related to program execution.
   TargetProg        : string
   ExecTimeout       : uint64
-  UsePty            : bool
   Architecture      : Arch
   // Options related to seed.
   InputDir          : string
@@ -76,7 +73,6 @@ let parseFuzzOption (args: string array) =
     // Options related to program execution.
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
     ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DEF_EXEC_TO)
-    UsePty = r.Contains (<@ UsePty @>)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString
     // Options related to seed.
