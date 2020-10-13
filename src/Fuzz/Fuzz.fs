@@ -4,11 +4,11 @@ open System.Threading
 open Utils
 open Options
 
+// Synchronize the seed queue with AFL every SYNC_N iterations.
+let SYNC_N = 10
+
 let private printFoundSeed verbosity seed =
-  if verbosity >= 1 then
-    log "[*] Found by grey-box concolic: %s" (Seed.toString seed)
-  elif verbosity >= 0 then
-    log "[*] Found by grey-box concolic %s" (Seed.toString seed)
+  if verbosity >= 1 then log "[*] Found a new seed: %s" (Seed.toString seed)
 
 let private evalSeed opt seed exitSig covGain =
   TestCase.save opt seed exitSig covGain
@@ -40,21 +40,25 @@ let private makeSteppedItems pr seed =
   | None -> []
   | Some s -> [(pr, s)]
 
-let syncWithAFL opt seedQueue n =
-  // Sychronize the seed queue with AFL instances every ten iterations.
-  if n % 10 = 0 && opt.SyncDir <> "" then Sync.run opt seedQueue
+// Decides how to share the resource with AFL instances.
+let private scheduleWithAFL opt =
+  if opt.SyncDir <> "" then Scheduler.checkAndReserveTime ()
+
+// Sychronize the seed queue with AFL instances.
+let private syncWithAFL opt seedQueue n =
+  if opt.SyncDir <> "" && n % SYNC_N = 0 then Sync.run opt seedQueue
   else seedQueue
 
 let rec private fuzzLoop opt seedQueue n =
-  let verbosity = opt.Verbosity
+  scheduleWithAFL opt
   let seedQueue = syncWithAFL opt seedQueue n
   if SeedQueue.isEmpty seedQueue then
-    if n % 10 = 0 && verbosity >= 1 then log "Seed queue empty, waiting..."
+    if n % 10 = 0 && opt.Verbosity >= 1 then log "Seed queue empty, waiting..."
     Thread.Sleep(1000)
     fuzzLoop opt seedQueue (n + 1)
   else
     let priority, seed, seedQueue = SeedQueue.dequeue seedQueue
-    if verbosity >= 1 then log "Fuzzing with: %s" (Seed.toString seed)
+    if opt.Verbosity >= 1 then log "Fuzzing with: %s" (Seed.toString seed)
     let newItems = GreyConcolic.run seed opt
     // Relocate the cursors of newly generated seeds.
     let relocatedItems = makeRelocatedItems opt newItems
@@ -86,12 +90,13 @@ let main args =
   createDirectoryIfNotExists opt.OutDir
   TestCase.initialize opt.OutDir
   Executor.initialize opt
+  Scheduler.initialize ()
   let emptyQueue = SeedQueue.initialize ()
   let initialSeeds = initializeSeeds opt
   log "[*] Total %d initial seeds" (List.length initialSeeds)
   let initItems = List.choose (makeInitialItems opt) initialSeeds
   let initQueue = List.fold SeedQueue.enqueue emptyQueue initItems
-  log "[*] Start fuzzing"
   Async.Start (fuzzingTimer opt.Timelimit)
+  log "[*] Start fuzzing"
   fuzzLoop opt initQueue 0
   0 // Unreachable

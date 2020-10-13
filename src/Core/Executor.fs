@@ -22,6 +22,13 @@ type Tracer = Coverage | Branch | BBCount
 [<DllImport("libexec.dll")>] extern Signal exec_fork_coverage (uint64 timeout, int stdin_size, byte[] stdin_data)
 [<DllImport("libexec.dll")>] extern Signal exec_fork_branch (uint64 timeout, int stdin_size, byte[] stdin_data, uint64 targ_addr, uint32 targ_index, int measure_cov)
 
+let mutable private branchLog = ""
+let mutable private coverageLog = ""
+let mutable private bitmapLog = ""
+let mutable private dbgLog = ""
+let mutable private forkServerOn = false
+let mutable private roundExecutions = 0
+
 (*** Tracer and file paths ***)
 
 let buildDir =
@@ -43,14 +50,10 @@ let selectTracer tracer arch =
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
-let mutable branchLog = ""
-let mutable coverageLog = ""
-let mutable bitmapLog = ""
-let mutable dbgLog = ""
-let mutable forkServerEnabled = false
+(*** Initialization and cleanup ***)
 
 let private initializeForkServer opt =
-  forkServerEnabled <- true
+  forkServerOn <- true
   let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
   let coverageTracer = selectTracer Coverage opt.Architecture
   let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
@@ -85,18 +88,24 @@ let initialize opt =
   else
     set_env("ECL_FORK_SERVER", "0")
 
+let abandonForkServer () =
+  log "Abandon fork server"
+  forkServerOn <- false
+  set_env("ECL_FORK_SERVER", "0")
+  kill_forkserver ()
+
 let cleanup () =
-  if forkServerEnabled then kill_forkserver ()
+  if forkServerOn then kill_forkserver ()
   removeFile branchLog
   removeFile coverageLog
   removeFile bitmapLog
   removeFile dbgLog
 
-let abandonForkServer () =
-  log "Abandon fork server"
-  forkServerEnabled <- false
-  set_env("ECL_FORK_SERVER", "0")
-  kill_forkserver ()
+(*** Execution count statistics ***)
+
+let getRoundExecutions () = roundExecutions
+
+let resetRoundExecutions () = roundExecutions <- 0
 
 (*** File handling utilities ***)
 
@@ -173,9 +182,10 @@ let private tryReadBranchInfo opt filename tryVal =
   | [ branchInfo ] -> Some branchInfo
   | _ -> None
 
-(*** Tracer execute functions ***)
+(*** Tracer execution functions ***)
 
 let private runTracer tracerType opt (stdin: byte array) =
+  roundExecutions <- roundExecutions + 1
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
   let tracer = selectTracer tracerType opt.Architecture
@@ -185,6 +195,7 @@ let private runTracer tracerType opt (stdin: byte array) =
   exec(argc, args, stdin.Length, stdin, timeout)
 
 let private runCoverageTracerForked opt stdin =
+  roundExecutions <- roundExecutions + 1
   let timeout = opt.ExecTimeout
   let stdLen = Array.length stdin
   let signal = exec_fork_coverage(timeout, stdLen, stdin)
@@ -192,6 +203,7 @@ let private runCoverageTracerForked opt stdin =
   signal
 
 let private runBranchTracerForked opt stdin addr idx covMeasure =
+  roundExecutions <- roundExecutions + 1
   let timeout = opt.ExecTimeout
   let stdLen = Array.length stdin
   let covEnum = CoverageMeasure.toEnum covMeasure
@@ -204,12 +216,12 @@ let private setEnvForBranch (addr: uint64) (idx: uint32) covMeasure =
   set_env("ECL_BRANCH_IDX", sprintf "%016x" idx)
   set_env("ECL_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
 
-(*** Top-level tracer executor functions ***)
+(*** Top-level tracer execution functions ***)
 
 let getCoverage opt seed =
   setupFile seed
   let stdin = prepareStdIn seed
-  let exitSig = if forkServerEnabled then runCoverageTracerForked opt stdin
+  let exitSig = if forkServerOn then runCoverageTracerForked opt stdin
                 else runTracer Coverage opt stdin
   let coverageGain = parseCoverage coverageLog
   (exitSig, coverageGain)
@@ -217,10 +229,9 @@ let getCoverage opt seed =
 let getBranchTrace opt seed tryVal =
   setupFile seed
   let stdin = prepareStdIn seed
-  let exitSig = if forkServerEnabled
-                then runBranchTracerForked opt stdin 0UL 0ul NonCumulative
-                else setEnvForBranch 0UL 0ul NonCumulative
-                     runTracer Branch opt stdin
+  let exitSig =
+    if forkServerOn then runBranchTracerForked opt stdin 0UL 0ul NonCumulative
+    else setEnvForBranch 0UL 0ul NonCumulative; runTracer Branch opt stdin
   let coverageGain = parseCoverage coverageLog
   let branchTrace = readBranchTrace opt branchLog tryVal
   removeFile coverageLog
@@ -230,10 +241,9 @@ let getBranchInfo opt seed tryVal targPoint =
   setupFile seed
   let stdin = prepareStdIn seed
   let addr, idx = targPoint.Addr, uint32 targPoint.Idx
-  let exitSig = if forkServerEnabled
-                then runBranchTracerForked opt stdin addr idx Cumulative
-                else setEnvForBranch addr idx Cumulative
-                     runTracer Branch opt stdin
+  let exitSig =
+    if forkServerOn then runBranchTracerForked opt stdin addr idx Cumulative
+    else setEnvForBranch addr idx Cumulative; runTracer Branch opt stdin
   let coverageGain = parseCoverage coverageLog
   let branchInfoOpt = tryReadBranchInfo opt branchLog tryVal
   removeFile coverageLog
@@ -243,7 +253,7 @@ let getBranchInfoOnly opt seed tryVal targPoint =
   setupFile seed
   let stdin = prepareStdIn seed
   let addr, idx = targPoint.Addr, uint32 targPoint.Idx
-  if forkServerEnabled then runBranchTracerForked opt stdin addr idx Ignore
+  if forkServerOn then runBranchTracerForked opt stdin addr idx Ignore
   else setEnvForBranch addr idx Ignore; runTracer Branch opt stdin
   |> ignore
   let brInfoOpt = tryReadBranchInfo opt branchLog tryVal
@@ -258,4 +268,3 @@ let nativeExecute opt seed =
   let args = Array.append [| targetProg |] cmdLine
   let argc = args.Length
   exec(argc, args, stdin.Length, stdin, timeout)
-

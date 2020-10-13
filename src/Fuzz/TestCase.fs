@@ -16,47 +16,53 @@ let initialize outDir =
 
 (*** Statistics ***)
 
-let mutable private segfaultCount = 0
-let mutable private illegalInstrCount = 0
-let mutable private fpErrorCount = 0
-let mutable private abortCount = 0
-let mutable private crashCount = 0
-let mutable private testCaseCount = 0
+let mutable private totalSegfaults = 0
+let mutable private totalIllegals = 0
+let mutable private totalFPEs = 0
+let mutable private totalAborts = 0
+let mutable private totalCrashes = 0
+let mutable private totalTestCases = 0
+let mutable private roundTestCases = 0
 
 let printStatistics () =
-  log "Testcases : %d" testCaseCount
-  log "Crashes : %d" crashCount
-  log "  Segfault : %d" segfaultCount
-  log "  Illegal instruction : %d" illegalInstrCount
-  log "  Floating point error : %d" fpErrorCount
-  log "  Program abortion : %d" abortCount
+  log "Testcases : %d" totalTestCases
+  log "Crashes : %d" totalCrashes
+  log "  Segfault : %d" totalSegfaults
+  log "  Illegal instruction : %d" totalIllegals
+  log "  Floating point error : %d" totalFPEs
+  log "  Program abortion : %d" totalAborts
 
-let private updateCrashCount exitSig =
+let private incrCrashCount exitSig =
   match exitSig with
-  | Signal.SIGSEGV -> segfaultCount <- segfaultCount + 1
-  | Signal.SIGILL -> illegalInstrCount <- illegalInstrCount + 1
-  | Signal.SIGFPE -> fpErrorCount <- fpErrorCount + 1
-  | Signal.SIGABRT -> abortCount <- abortCount + 1
+  | Signal.SIGSEGV -> totalSegfaults <- totalSegfaults + 1
+  | Signal.SIGILL -> totalIllegals <- totalIllegals + 1
+  | Signal.SIGFPE -> totalFPEs <- totalFPEs + 1
+  | Signal.SIGABRT -> totalAborts <- totalAborts + 1
   | _ -> failwith "updateCrashCount() called with a non-crashing exit signal"
-  crashCount <- crashCount + 1
+  totalCrashes <- totalCrashes + 1
 
-let private updateTestcaseCount () =
-  testCaseCount <- testCaseCount + 1
+let private incrTestCaseCount () =
+  totalTestCases <- totalTestCases + 1
+  roundTestCases <- roundTestCases + 1
+
+let getRoundTestCaseCount () = roundTestCases
+
+let resetRoundTestCaseCount () = roundTestCases <- 0
 
 (*** Test case storing functions ***)
 
 let private dumpCrash opt seed exitSig =
   if opt.Verbosity >= 0 then log "Save crash seed : %s" (Seed.toString seed)
-  let crashName = sprintf "id:%06d" crashCount
+  let crashName = sprintf "id:%06d" totalCrashes
   let crashPath = System.IO.Path.Combine(crashDir, crashName)
   System.IO.File.WriteAllBytes(crashPath, Seed.concretize seed)
-  updateCrashCount exitSig
+  incrCrashCount exitSig
 
 let private dumpTestCase seed =
-  let tcName = sprintf "id:%06d" testCaseCount
+  let tcName = sprintf "id:%06d" totalTestCases
   let tcPath = System.IO.Path.Combine(testcaseDir, tcName)
   System.IO.File.WriteAllBytes(tcPath, Seed.concretize seed)
-  updateTestcaseCount ()
+  incrTestCaseCount ()
 
 let private checkCrash opt seed exitSig covGain =
   if Signal.isCrash exitSig && covGain = NewEdge then (true, exitSig)

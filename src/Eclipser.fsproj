@@ -26,6 +26,7 @@
     <Compile Include="Fuzz/TestCase.fs" />
     <Compile Include="Fuzz/SeedQueue.fs" />
     <Compile Include="Fuzz/Sync.fs" />
+    <Compile Include="Fuzz/Scheduler.fs" />
     <Compile Include="Fuzz/Fuzz.fs" />
   </ItemGroup>
 
