@@ -1,7 +1,3 @@
-/* A simple example to test whether Eclipser can solve nested inequality
- * checking conditions.
- */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>

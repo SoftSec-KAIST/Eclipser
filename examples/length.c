@@ -1,5 +1,4 @@
-/* A simple example to test whether Eclipser can cooperate well with AFL. */
-
+// A simple example to test whether Eclipser can cooperate well with AFL.
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

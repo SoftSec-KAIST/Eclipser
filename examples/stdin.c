@@ -1,7 +1,3 @@
-/* A simple example to test whether Eclipser can solve equality checking
- * conditions.
- */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -23,16 +19,10 @@ int main(int argc, char ** argv){
   short s, s_const;
   int i, i_const, i_be;
   int64_t i64, i64_const;
-  int fd;
-
-  if (argc < 2)
-    return -1;
 
   init_consts(&c_const, &s_const, &i_const, &i64_const);
 
-  fd = open(argv[1], O_RDWR);
-
-  read(fd, &c, sizeof(c));
+  read(0, &c, sizeof(c));
   if (c == 0x41) {
     printf("Found new path 1-1!\n");
   }
@@ -40,7 +30,7 @@ int main(int argc, char ** argv){
     printf("Found new path 1-2!\n");
   }
 
-  read(fd, &s, sizeof(short));
+  read(0, &s, sizeof(short));
   if (s == 0x4142) {
     printf("Found new path 2-1!\n");
   }
@@ -48,7 +38,7 @@ int main(int argc, char ** argv){
     printf("Found new path 2-2!\n");
   }
 
-  read(fd, &i, sizeof(int));
+  read(0, &i, sizeof(int));
   if (i == 0x41424344) {
     printf("Found new path 3-1!\n");
   }
@@ -56,7 +46,7 @@ int main(int argc, char ** argv){
     printf("Found new path 3-2!\n");
   }
 
-  read(fd, &i64, sizeof(int64_t));
+  read(0, &i64, sizeof(int64_t));
   if (i64 == 0x4142434445464748ll) {
     printf("Found new path 4-1!\n");
   }
@@ -72,8 +62,6 @@ int main(int argc, char ** argv){
   if (i_be == 0x71727374) {
     printf("Found new path 5!\n");
   }
-
-  close(fd);
 
   return 0;
 }

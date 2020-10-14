@@ -1,5 +1,3 @@
-/* Ab example with custom strcmp() function that requires binary search. */
-
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>

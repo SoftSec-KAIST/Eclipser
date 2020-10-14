@@ -1,7 +1,3 @@
-/* A variatn of cmp.c example, to test if Eclipser can handle programs that
- * raises timeout.
- */
-
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>

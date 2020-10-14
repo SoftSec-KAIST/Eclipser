@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Grey-box concolic should find file input test case with \x44\x43\x42\x41.
+# Tests if Eclipser can correctly identify coverage gain even if the program
+# exits with a timeout. Eclipser should be able to find a test case containing
+# \x44\x43\x42\x41.
 gcc timeout.c -o timeout.bin -static -g || exit 1
 rm -rf box
 mkdir box

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Grey-box concolic should find a program-crashing test case within few seconds.
+# Motivating example in the paper. Eclipser should find a crash immediately.
 gcc motiv.c -o motiv.bin -static -g || exit 1
 rm -rf box
 mkdir box
