@@ -1,15 +1,13 @@
 module Eclipser.Scheduler
 
+open Config
 open Utils
 open System.Threading
 
 let private timer = new System.Diagnostics.Stopwatch()
-// We will consider every ROUND_SIZE executions as a single round.
-let private ROUND_SIZE = 10000
+
 // Tentative efficiency of random fuzzing. TODO: Communicate with AFL for this.
 let private RAND_FUZZ_EFFICIENCY = 0.0005
-let private SLEEP_FACTOR_MIN = 0.0
-let private SLEEP_FACTOR_MAX = 4.0
 
 // Decides sleep factor 'f', which will be used to sleep for 'f * elapsed time'.
 // This means we will utilize 1 / (2 * (f + 1)) of the system resource.

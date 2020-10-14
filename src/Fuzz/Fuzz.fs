@@ -1,11 +1,9 @@
 module Eclipser.Fuzz
 
 open System.Threading
+open Config
 open Utils
 open Options
-
-// Synchronize the seed queue with AFL every SYNC_N iterations.
-let SYNC_N = 10
 
 let private printFoundSeed verbosity seed =
   if verbosity >= 1 then log "[*] Found a new seed: %s" (Seed.toString seed)

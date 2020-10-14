@@ -3,12 +3,9 @@ module Eclipser.Executor
 open System
 open System.IO
 open System.Runtime.InteropServices
+open Config
 open Utils
 open Options
-
-let private BITMAP_SIZE = 0x10000L
-
-let private WHITES = [| ' '; '\t'; '\n' |]
 
 /// Kinds of QEMU instrumentor. Each instrumentor serves different purposes.
 type Tracer = Coverage | Branch | BBCount
@@ -50,11 +47,21 @@ let selectTracer tracer arch =
   | BBCount, X86 -> bbCountTracerX86
   | BBCount, X64 -> bbCountTracerX64
 
+(*** Misc utility functions ***)
+
+let splitCmdLineArg (argStr: string) =
+  let whiteSpaces = [| ' '; '\t'; '\n' |]
+  argStr.Split(whiteSpaces, StringSplitOptions.RemoveEmptyEntries)
+
+let readAllLines filename =
+  try List.ofSeq (System.IO.File.ReadLines filename) with
+  | :? System.IO.FileNotFoundException -> []
+
 (*** Initialization and cleanup ***)
 
 let private initializeForkServer opt =
   forkServerOn <- true
-  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let cmdLine = splitCmdLineArg opt.Arg
   let coverageTracer = selectTracer Coverage opt.Architecture
   let args = Array.append [|coverageTracer; opt.TargetProg|] cmdLine
   let pidCoverage = init_forkserver_coverage(args.Length, args, opt.ExecTimeout)
@@ -107,11 +114,12 @@ let getRoundExecutions () = roundExecutions
 
 let resetRoundExecutions () = roundExecutions <- 0
 
-(*** File handling utilities ***)
+(*** Setup functions ***)
 
-let readAllLines filename =
-  try List.ofSeq (System.IO.File.ReadLines filename) with
-  | :? System.IO.FileNotFoundException -> []
+let private setEnvForBranch (addr: uint64) (idx: uint32) covMeasure =
+  set_env("ECL_BRANCH_ADDR", sprintf "%016x" addr)
+  set_env("ECL_BRANCH_IDX", sprintf "%016x" idx)
+  set_env("ECL_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
 
 let private setupFile seed =
   match seed.Source with
@@ -189,7 +197,7 @@ let private runTracer tracerType opt (stdin: byte array) =
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
   let tracer = selectTracer tracerType opt.Architecture
-  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let cmdLine = splitCmdLineArg opt.Arg
   let args = Array.append [|tracer; targetProg|] cmdLine
   let argc = args.Length
   exec(argc, args, stdin.Length, stdin, timeout)
@@ -210,11 +218,6 @@ let private runBranchTracerForked opt stdin addr idx covMeasure =
   let signal = exec_fork_branch(timeout, stdLen, stdin, addr, idx, covEnum)
   if signal = Signal.ERROR then abandonForkServer ()
   signal
-
-let private setEnvForBranch (addr: uint64) (idx: uint32) covMeasure =
-  set_env("ECL_BRANCH_ADDR", sprintf "%016x" addr)
-  set_env("ECL_BRANCH_IDX", sprintf "%016x" idx)
-  set_env("ECL_MEASURE_COV", sprintf "%d" (CoverageMeasure.toEnum covMeasure))
 
 (*** Top-level tracer execution functions ***)
 
@@ -264,7 +267,7 @@ let nativeExecute opt seed =
   setupFile seed
   let stdin = prepareStdIn seed
   let timeout = opt.ExecTimeout
-  let cmdLine = opt.Arg.Split(WHITES, StringSplitOptions.RemoveEmptyEntries)
+  let cmdLine = splitCmdLineArg opt.Arg
   let args = Array.append [| targetProg |] cmdLine
   let argc = args.Length
   exec(argc, args, stdin.Length, stdin, timeout)
