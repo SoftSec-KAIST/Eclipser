@@ -11,7 +11,7 @@ type FuzzerCLI =
   | [<AltCommandLine("-s")>] [<Unique>] SyncDir of path: string
   // Options related to program execution.
   | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
-  | [<Unique>] ExecTimeout of millisec:uint64
+  | [<AltCommandLine("-e")>] [<Unique>] ExecTimeout of millisec:uint64
   | [<Unique>] Architecture of string
   | [<Unique>] NoForkServer
   // Options related to seed.
@@ -75,7 +75,7 @@ let parseFuzzOption (args: string array) =
     SyncDir = r.GetResult (<@ SyncDir @>, defaultValue = "")
     // Options related to program execution.
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
-    ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DEF_EXEC_TO)
+    ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = 0UL)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString
     ForkServer = not (r.Contains(<@ NoForkServer @>)) // Enable by default.

@@ -7,12 +7,6 @@ open Options
 let private printFoundSeed opt seed =
   if opt.Verbosity >= 1 then log "[*] Found a new seed: %s" (Seed.toString seed)
 
-let private evalSeed opt seed exitSig covGain =
-  TestCase.save opt seed exitSig covGain
-  if covGain = NewEdge then printFoundSeed opt seed
-  let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
-  if isAbnormal then None else Priority.ofCoverageGain covGain
-
 let private initializeSeeds opt =
   if opt.InputDir = "" then [Seed.make opt.FuzzSource]
   else System.IO.Directory.EnumerateFiles opt.InputDir // Obtain file list
@@ -20,10 +14,58 @@ let private initializeSeeds opt =
        |> List.map System.IO.File.ReadAllBytes // Read in file contents
        |> List.map (Seed.makeWith opt.FuzzSource) // Create seed with content
 
-let private makeInitialItems opt seed =
+let private checkInitSeedCoverage opt seed =
   let exitSig, covGain = Executor.getCoverage opt seed
   TestCase.save opt seed exitSig covGain
-  Option.map (fun pr -> (pr, seed)) (Priority.ofCoverageGain covGain)
+  match Priority.ofCoverageGain covGain with
+  | None -> None
+  | Some priority -> Some (priority, seed)
+
+let private initializeQueue opt seeds =
+  // If the execution timeout is not given, use a large enough value for now.
+  let opt = if opt.ExecTimeout <> 0UL then opt
+            else { opt with ExecTimeout = EXEC_TIMEOUT_MAX }
+  let initItems = List.choose (checkInitSeedCoverage opt) seeds
+  List.fold SeedQueue.enqueue SeedQueue.empty initItems
+
+// Measure the execution time of an initial seed. Choose the longer time between
+// getCoverage() and getBranchTrace() call.
+let private getInitSeedExecTime opt seed =
+  let stopWatch = new System.Diagnostics.Stopwatch()
+  stopWatch.Start()
+  Executor.getCoverage opt seed |> ignore
+  let time1 = stopWatch.Elapsed.TotalMilliseconds
+  stopWatch.Reset()
+  stopWatch.Start()
+  Executor.getBranchTrace opt seed 0I |> ignore // Use a dummy 'tryVal' arg.
+  let time2 = stopWatch.Elapsed.TotalMilliseconds
+  max time1 time2
+
+// Decide execution timeout based on the execution time of initial seeds. Adopt
+// the basic idea from AFL, and adjust coefficients and range for Eclipser.
+let private decideExecTimeout (execTimes: float list) =
+  let avgExecTime = List.average execTimes
+  let maxExecTime = List.max execTimes
+  log "[*] Initial seed execution time: avg = %.1f (ms), max = %.1f (ms)"
+    avgExecTime maxExecTime
+  let execTimeout = uint64 (max (4.0 * avgExecTime) (1.2 * maxExecTime))
+  let execTimeout = min EXEC_TIMEOUT_MAX (max EXEC_TIMEOUT_MIN execTimeout)
+  log "[*] Set execution timeout to %d (ms)" execTimeout
+  execTimeout
+
+// If the execution timeout is not given, set it to a large enough value and
+// find each seed's execution time. Then, decide a new timeout based on them.
+let private updateExecTimeout opt seeds =
+  if opt.ExecTimeout <> 0UL then opt
+  else let opt = { opt with ExecTimeout = EXEC_TIMEOUT_MAX }
+       let execTimes = List.map (getInitSeedExecTime opt) seeds
+       { opt with ExecTimeout = decideExecTimeout execTimes }
+
+let private evalSeed opt seed exitSig covGain =
+  TestCase.save opt seed exitSig covGain
+  if covGain = NewEdge then printFoundSeed opt seed
+  let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
+  if isAbnormal then None else Priority.ofCoverageGain covGain
 
 let private makeRelocatedItems opt seeds =
   let collector (seed, exitSig, covGain) =
@@ -93,11 +135,10 @@ let main args =
   createDirectoryIfNotExists opt.OutDir
   TestCase.initialize opt.OutDir
   Executor.initialize opt
-  let emptyQueue = SeedQueue.initialize ()
   let initialSeeds = initializeSeeds opt
   log "[*] Total %d initial seeds" (List.length initialSeeds)
-  let initItems = List.choose (makeInitialItems opt) initialSeeds
-  let initQueue = List.fold SeedQueue.enqueue emptyQueue initItems
+  let initQueue = initializeQueue opt initialSeeds
+  let opt = updateExecTimeout opt initialSeeds
   setTimer opt
   Scheduler.initialize () // Should be called after preprocessing initial seeds.
   log "[*] Start fuzzing"

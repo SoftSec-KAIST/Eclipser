@@ -265,8 +265,7 @@ let getBranchInfoOnly opt seed tryVal targPoint =
   if forkServerOn then runBranchTracerForked opt stdin addr idx Ignore
   else setEnvForBranch addr idx Ignore; runTracer Branch opt stdin
   |> ignore
-  let brInfoOpt = tryReadBranchInfo opt branchLog tryVal
-  brInfoOpt
+  tryReadBranchInfo opt branchLog tryVal
 
 let nativeExecute opt seed =
   let targetProg = opt.TargetProg

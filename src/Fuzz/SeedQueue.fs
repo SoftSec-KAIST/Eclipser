@@ -42,7 +42,7 @@ type SeedQueue = {
 
 module SeedQueue =
 
-  let initialize () =
+  let empty =
     { Favoreds = Queue.empty
       Normals = Queue.empty }
 
