@@ -57,7 +57,7 @@ let resetRoundTestCaseCount () = roundTestCases <- 0
 (*** Test case storing functions ***)
 
 let private dumpCrash opt seed exitSig =
-  if opt.Verbosity >= 0 then log "Save crash seed : %s" (Seed.toString seed)
+  if opt.Verbosity >= 1 then log "[*] Save crash seed : %s" (Seed.toString seed)
   let crashName = sprintf "id:%06d" totalCrashes
   let crashPath = System.IO.Path.Combine(crashDir, crashName)
   System.IO.File.WriteAllBytes(crashPath, Seed.concretize seed)

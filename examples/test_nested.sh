@@ -7,4 +7,4 @@ rm -rf box
 mkdir box
 cd box
 dotnet ../../build/Eclipser.dll \
-  -p ../nested.bin -t 20 -v 1 -o output -f input --arg input
+  -p ../nested.bin -t 20 -v 2 -o output -f input --arg input

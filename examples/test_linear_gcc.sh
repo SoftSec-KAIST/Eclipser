@@ -6,4 +6,4 @@ rm -rf box
 mkdir box
 cd box
 dotnet ../../build/Eclipser.dll \
-  -p ../linear.bin -t 5 -v 1 -o output -f input --arg input
+  -p ../linear.bin -t 5 -v 2 -o output -f input --arg input

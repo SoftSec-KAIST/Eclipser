@@ -7,4 +7,4 @@ rm -rf box
 mkdir box
 cd box
 dotnet ../../build/Eclipser.dll \
-  -p ../monoton.bin -t 10 -v 1 -o output -f input --arg input
+  -p ../monoton.bin -t 10 -v 2 -o output -f input --arg input

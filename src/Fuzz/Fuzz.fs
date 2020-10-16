@@ -1,16 +1,15 @@
 module Eclipser.Fuzz
 
-open System.Threading
 open Config
 open Utils
 open Options
 
-let private printFoundSeed verbosity seed =
-  if verbosity >= 1 then log "[*] Found a new seed: %s" (Seed.toString seed)
+let private printFoundSeed opt seed =
+  if opt.Verbosity >= 1 then log "[*] Found a new seed: %s" (Seed.toString seed)
 
 let private evalSeed opt seed exitSig covGain =
   TestCase.save opt seed exitSig covGain
-  if covGain = NewEdge then printFoundSeed opt.Verbosity seed
+  if covGain = NewEdge then printFoundSeed opt seed
   let isAbnormal = Signal.isTimeout exitSig || Signal.isCrash exitSig
   if isAbnormal then None else Priority.ofCoverageGain covGain
 
@@ -40,7 +39,7 @@ let private makeSteppedItems pr seed =
 
 // Decides how to share the resource with AFL instances.
 let private scheduleWithAFL opt =
-  if opt.SyncDir <> "" then Scheduler.checkAndReserveTime ()
+  if opt.SyncDir <> "" then Scheduler.checkAndReserveTime opt
 
 // Sychronize the seed queue with AFL instances.
 let private syncWithAFL opt seedQueue n =
@@ -51,12 +50,12 @@ let rec private fuzzLoop opt seedQueue n =
   scheduleWithAFL opt
   let seedQueue = syncWithAFL opt seedQueue n
   if SeedQueue.isEmpty seedQueue then
-    if n % 10 = 0 && opt.Verbosity >= 1 then log "Seed queue empty, waiting..."
-    Thread.Sleep(1000)
+    if n % 10 = 0 && opt.Verbosity >= 2 then log "Seed queue empty, waiting..."
+    System.Threading.Thread.Sleep(1000)
     fuzzLoop opt seedQueue (n + 1)
   else
     let priority, seed, seedQueue = SeedQueue.dequeue seedQueue
-    if opt.Verbosity >= 1 then log "Fuzzing with: %s" (Seed.toString seed)
+    if opt.Verbosity >= 2 then log "Fuzzing with: %s" (Seed.toString seed)
     let newItems = GreyConcolic.run seed opt
     // Relocate the cursors of newly generated seeds.
     let relocatedItems = makeRelocatedItems opt newItems

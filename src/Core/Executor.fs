@@ -76,7 +76,6 @@ let private initializeForkServer opt =
 
 let initialize opt =
   let outDir = opt.OutDir
-  let verbosity = opt.Verbosity
   // Set environment variables for the instrumentor.
   branchLog <- System.IO.Path.Combine(outDir, ".branch")
   coverageLog <- System.IO.Path.Combine(outDir, ".coverage")
@@ -87,8 +86,6 @@ let initialize opt =
   use bitmapFile = File.Create(bitmapLog)
   bitmapFile.SetLength(BITMAP_SIZE)
   set_env("ECL_BITMAP_LOG", System.IO.Path.GetFullPath(bitmapLog))
-  if verbosity >= 2 then
-    set_env("ECL_DBG_LOG", System.IO.Path.GetFullPath(dbgLog))
   initialize_exec ()
   if opt.ForkServer then
     set_env("ECL_FORK_SERVER", "1")

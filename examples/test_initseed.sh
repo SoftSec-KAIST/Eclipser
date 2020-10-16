@@ -9,4 +9,4 @@ cd box
 mkdir seeds
 python -c 'print "B" * 16' > seeds/input
 dotnet ../../build/Eclipser.dll \
-  -p ../linear.bin -t 5 -v 1 -i seeds -o output -f input --arg input
+  -p ../linear.bin -t 5 -v 2 -i seeds -o output -f input --arg input

@@ -69,7 +69,7 @@ let parseFuzzOption (args: string array) =
   let parser = ArgumentParser.Create<FuzzerCLI> (programName = cmdPrefix)
   let r = try parser.Parse(args) with
           :? Argu.ArguParseException -> printLine (parser.PrintUsage()); exit 1
-  { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 0)
+  { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 1)
     Timelimit = r.GetResult (<@ Timelimit @>, defaultValue = -1)
     OutDir = r.GetResult (<@ OutputDir @>)
     SyncDir = r.GetResult (<@ SyncDir @>, defaultValue = "")

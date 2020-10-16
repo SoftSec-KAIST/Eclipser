@@ -53,5 +53,5 @@ echo "Launched slave AFL"
 cd ../eclipser-box
 cp ../../length.bin ./
 dotnet ../../../build/Eclipser.dll \
-  -t 20 -v 1 -s ../syncdir -o ../syncdir/eclipser-output \
+  -t 20 -v 2 -s ../syncdir -o ../syncdir/eclipser-output \
   -p ./length.bin --arg input -f input 

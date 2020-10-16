@@ -26,7 +26,7 @@ let private syncTestCase opt maxImport (accSeedQueue, accMaxImport) tcPath =
   | None -> (accSeedQueue, accMaxImport)
   | Some num when num <= maxImport -> (accSeedQueue, accMaxImport)
   | Some num -> // Unhandled test case ID.
-    log "Synchronizing seed queue with %s" tcPath
+    if opt.Verbosity >= 2 then log "Synchronizing seed queue with %s" tcPath
     let accMaxImport = if num > accMaxImport then num else accMaxImport
     let accSeedQueue = importSeed opt tcPath accSeedQueue
     (accSeedQueue, accMaxImport)
