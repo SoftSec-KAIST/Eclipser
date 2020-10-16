@@ -67,10 +67,10 @@ let rec private fuzzLoop opt seedQueue n =
     let seedQueue = List.fold SeedQueue.enqueue seedQueue steppedItems
     fuzzLoop opt seedQueue (n + 1)
 
-let private fuzzingTimer timeoutSec = async {
-  let timespan = System.TimeSpan(0, 0, 0, timeoutSec)
-  System.Threading.Thread.Sleep(timespan )
-  printLine "Fuzzing timeout expired."
+let private terminator timelimitSec = async {
+  let timespan = System.TimeSpan(0, 0, 0, timelimitSec)
+  System.Threading.Thread.Sleep(timespan)
+  log "[*] Fuzzing timeout expired."
   log "===== Statistics ====="
   TestCase.printStatistics ()
   log "Done, clean up and exit..."
@@ -78,13 +78,19 @@ let private fuzzingTimer timeoutSec = async {
   exit (0)
 }
 
+let private setTimer opt =
+  if opt.Timelimit > 0 then
+    log "[*] Time limit : %d sec" opt.Timelimit
+    Async.Start (terminator opt.Timelimit)
+  else
+    log "[*] No time limit given, run infinitely"
+
 [<EntryPoint>]
 let main args =
   let opt = parseFuzzOption args
   validateFuzzOption opt
   assertFileExists opt.TargetProg
   log "[*] Fuzz target : %s" opt.TargetProg
-  log "[*] Time limit : %d sec" opt.Timelimit
   createDirectoryIfNotExists opt.OutDir
   TestCase.initialize opt.OutDir
   Executor.initialize opt
@@ -94,7 +100,7 @@ let main args =
   log "[*] Total %d initial seeds" (List.length initialSeeds)
   let initItems = List.choose (makeInitialItems opt) initialSeeds
   let initQueue = List.fold SeedQueue.enqueue emptyQueue initItems
-  Async.Start (fuzzingTimer opt.Timelimit)
+  setTimer opt
   log "[*] Start fuzzing"
   fuzzLoop opt initQueue 0
   0 // Unreachable

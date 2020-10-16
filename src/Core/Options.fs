@@ -6,7 +6,7 @@ open Config
 
 type FuzzerCLI =
   | [<AltCommandLine("-v")>] [<Unique>] Verbose of int
-  | [<AltCommandLine("-t")>] [<Mandatory>] [<Unique>] Timelimit of sec: int
+  | [<AltCommandLine("-t")>] [<Unique>] Timelimit of sec: int
   | [<AltCommandLine("-o")>] [<Mandatory>] [<Unique>] OutputDir of path: string
   | [<AltCommandLine("-s")>] [<Unique>] SyncDir of path: string
   // Options related to program execution.
@@ -32,11 +32,11 @@ with
       // Options related to program execution.
       | Program _ -> "Target program for test case generation with fuzzing."
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default:500)"
-      | Architecture _ -> "Target program architecture (X86|X64) (default:X64)"
+      | Architecture _ -> "Target program architecture (x86|x64) (default:x64)"
       | NoForkServer -> "Do not use fork server for target program execution"
       // Options related to seed.
       | InputDir _ -> "Directory containing initial seeds."
-      | Arg _ -> "Command-line argument of program under test."
+      | Arg _ -> "Command-line argument of the target program to fuzz."
       | Filepath _ -> "File input's (fixed) path"
       // Options related to grey-box concolic testing technique.
       | NSolve _ -> "Number of branches to flip in grey-box concolic testing " +
@@ -70,7 +70,7 @@ let parseFuzzOption (args: string array) =
   let r = try parser.Parse(args) with
           :? Argu.ArguParseException -> printLine (parser.PrintUsage()); exit 1
   { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 0)
-    Timelimit = r.GetResult (<@ Timelimit @>)
+    Timelimit = r.GetResult (<@ Timelimit @>, defaultValue = -1)
     OutDir = r.GetResult (<@ OutputDir @>)
     SyncDir = r.GetResult (<@ SyncDir @>, defaultValue = "")
     // Options related to program execution.
