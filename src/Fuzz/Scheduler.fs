@@ -21,17 +21,17 @@ let private decideSleepFactor roundExecs roundTCs =
   max SLEEP_FACTOR_MIN (min SLEEP_FACTOR_MAX factor)
 
 let initialize () =
-  Executor.resetRoundExecutions()
-  TestCase.resetRoundTestCaseCount()
+  Executor.enableRoundStatistics()
+  TestCase.enableRoundStatistics()
   timer.Start()
 
 // Check the efficiency of the system and sleep for a while to adjust the weight
 // of resource use with AFL.
-let checkAndReserveTime () =
-  let roundExecs = Executor.getRoundExecutions ()
+let checkAndReserveTime opt =
+  let roundExecs = Executor.getRoundExecs ()
   if roundExecs > ROUND_SIZE then
     let roundTCs = TestCase.getRoundTestCaseCount ()
-    Executor.resetRoundExecutions()
+    Executor.resetRoundExecs()
     TestCase.resetRoundTestCaseCount()
     let sleepFactor = decideSleepFactor roundExecs roundTCs
     let roundElapsed = timer.ElapsedMilliseconds

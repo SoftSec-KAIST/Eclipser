@@ -22,6 +22,7 @@ let mutable private totalFPEs = 0
 let mutable private totalAborts = 0
 let mutable private totalCrashes = 0
 let mutable private totalTestCases = 0
+let mutable private roundStatisticsOn = false
 let mutable private roundTestCases = 0
 
 let printStatistics () =
@@ -41,11 +42,15 @@ let private incrCrashCount exitSig =
   | _ -> failwith "updateCrashCount() called with a non-crashing exit signal"
   totalCrashes <- totalCrashes + 1
 
-let private incrTestCaseCount () =
-  totalTestCases <- totalTestCases + 1
-  roundTestCases <- roundTestCases + 1
+let enableRoundStatistics () = roundStatisticsOn <- true
+
+let disableRoundStatistics () = roundStatisticsOn <- false
 
 let getRoundTestCaseCount () = roundTestCases
+
+let incrTestCaseCount () =
+  totalTestCases <- totalTestCases + 1
+  if roundStatisticsOn then roundTestCases <- roundTestCases + 1
 
 let resetRoundTestCaseCount () = roundTestCases <- 0
 

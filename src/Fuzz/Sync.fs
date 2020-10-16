@@ -46,4 +46,9 @@ let run opt seedQueue =
   let subDirs = Directory.EnumerateDirectories(syncDir) |> List.ofSeq
                 |> List.map (fun dirName -> Path.Combine(syncDir, dirName))
                 |> List.filter (fun d -> d <> outDir) // Exclude our own output.
-  List.fold (syncFromDir opt) seedQueue subDirs
+  Executor.disableRoundStatistics()
+  TestCase.disableRoundStatistics()
+  let newSeedQueue = List.fold (syncFromDir opt) seedQueue subDirs
+  Executor.enableRoundStatistics()
+  TestCase.enableRoundStatistics()
+  newSeedQueue

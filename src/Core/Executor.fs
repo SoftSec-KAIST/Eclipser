@@ -24,7 +24,8 @@ let mutable private coverageLog = ""
 let mutable private bitmapLog = ""
 let mutable private dbgLog = ""
 let mutable private forkServerOn = false
-let mutable private roundExecutions = 0
+let mutable private roundStatisticsOn = false
+let mutable private roundExecs = 0
 
 (*** Tracer and file paths ***)
 
@@ -110,9 +111,17 @@ let cleanup () =
 
 (*** Execution count statistics ***)
 
-let getRoundExecutions () = roundExecutions
+let enableRoundStatistics () = roundStatisticsOn <- true
 
-let resetRoundExecutions () = roundExecutions <- 0
+let disableRoundStatistics () = roundStatisticsOn <- false
+
+let getRoundExecs () = roundExecs
+
+// Increment only if roundStatisticsOn flag is set. We don't want the executions
+// for the synchronization with AFL to affect the efficiency calculation.
+let incrRoundExecs () = if roundStatisticsOn then roundExecs <- roundExecs + 1
+
+let resetRoundExecs () = roundExecs <- 0
 
 (*** Setup functions ***)
 
@@ -193,7 +202,7 @@ let private tryReadBranchInfo opt filename tryVal =
 (*** Tracer execution functions ***)
 
 let private runTracer tracerType opt (stdin: byte array) =
-  roundExecutions <- roundExecutions + 1
+  incrRoundExecs ()
   let targetProg = opt.TargetProg
   let timeout = opt.ExecTimeout
   let tracer = selectTracer tracerType opt.Architecture
@@ -203,7 +212,7 @@ let private runTracer tracerType opt (stdin: byte array) =
   exec(argc, args, stdin.Length, stdin, timeout)
 
 let private runCoverageTracerForked opt stdin =
-  roundExecutions <- roundExecutions + 1
+  incrRoundExecs ()
   let timeout = opt.ExecTimeout
   let stdLen = Array.length stdin
   let signal = exec_fork_coverage(timeout, stdLen, stdin)
@@ -211,7 +220,7 @@ let private runCoverageTracerForked opt stdin =
   signal
 
 let private runBranchTracerForked opt stdin addr idx covMeasure =
-  roundExecutions <- roundExecutions + 1
+  incrRoundExecs ()
   let timeout = opt.ExecTimeout
   let stdLen = Array.length stdin
   let covEnum = CoverageMeasure.toEnum covMeasure

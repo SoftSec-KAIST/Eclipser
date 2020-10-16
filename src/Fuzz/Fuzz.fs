@@ -94,13 +94,13 @@ let main args =
   createDirectoryIfNotExists opt.OutDir
   TestCase.initialize opt.OutDir
   Executor.initialize opt
-  Scheduler.initialize ()
   let emptyQueue = SeedQueue.initialize ()
   let initialSeeds = initializeSeeds opt
   log "[*] Total %d initial seeds" (List.length initialSeeds)
   let initItems = List.choose (makeInitialItems opt) initialSeeds
   let initQueue = List.fold SeedQueue.enqueue emptyQueue initItems
   setTimer opt
+  Scheduler.initialize () // Should be called after preprocessing initial seeds.
   log "[*] Start fuzzing"
-  fuzzLoop opt initQueue 0
+  fuzzLoop opt initQueue 1 // Start from 1, to slightly defer the first sync.
   0 // Unreachable
