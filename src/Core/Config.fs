@@ -1,43 +1,32 @@
 module Eclipser.Config
 
-/// Default execution timeout of target program.
-let DefaultExecTO = 500UL
+/// Size of bitmap to measure edge coverage. Should be updated along with the
+/// macros at Instrumentor/patches-*/eclipser.c
+let BITMAP_SIZE = 0x10000L
 
-/// Trigger seed queue culling when the queue size increased by this ratio.
-let SeedCullingThreshold = 1.2
+/// Synchronize the seed queue with AFL every SYNC_N iteration of fuzzing loop.
+let SYNC_N = 10
 
-/// Number of program execution allowed per each round of grey-box concolic
-/// testing and random fuzz testing.
-let ExecBudgetPerRound = 5000
+/// We will consider every ROUND_SIZE executions as a single round. A 'round' is
+/// the unit of time for resource scheduling (cf. Scheduler.fs)
+let ROUND_SIZE = 10000
+let SLEEP_FACTOR_MIN = 0.0
+let SLEEP_FACTOR_MAX = 4.0
 
-/// Probability to use the queue of 'favored' seeds when selecting the next
-/// seed to use for test case generation.
-let FavoredSeedProb = 0.8
-
-let MutateRatio = 0.2
-let RecentRoundN = 10
-let MinResrcRatio = 0.1
-let MaxResrcRatio = 1.0 - MinResrcRatio
+/// Minimum and maximum value for the execution timeout of target program. Note
+/// that AFL uses 1000UL for EXEC_TIMEOUT_MAX, but we use a higher value since
+/// Eclipser is a binary-based fuzzer. Note that this range is ignored when an
+/// explicit execution timeout is given with '-e' option.
+let EXEC_TIMEOUT_MIN = 400UL
+let EXEC_TIMEOUT_MAX = 4000UL
 
 /// Maximum length of chunk to try in grey-box concolic testing.
-let MaxChunkLen = 10
-
-/// In random fuzzing, try this number of random mutation for a chosen seed.
-let RandSchTryCount = 100
-
-/// Call context sensitivity when measuring node coverage.
-let CtxSensitivity = 0
+let MAX_CHUNK_LEN = 10
 
 /// The length of each input during the initialization of a seed. If the user
 /// explicitly provided initial seed inputs, this parameter will not be used.
-let InitInputLen = 16
+let INIT_INPUT_LEN = 16
 
-let DurableQueueMaxSize = 1000
+let MAX_INPUT_LEN = 1048576
 
-let FileQueueMaxSize = 10000
-
-let FileQueueMaxBytes = 2048UL * 1024UL * 1024UL // 2048 megabytes.
-
-let BranchCombinationWindow = 6
-
-let SkipFixedProb = 50
+let BRANCH_COMB_WINDOW = 6

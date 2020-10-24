@@ -1,0 +1,25 @@
+--- qemu-2.10.0-bbcount/accel/tcg/cpu-exec.c.orig	2020-09-29 08:25:21.151543920 -0700
++++ qemu-2.10.0-bbcount/accel/tcg/cpu-exec.c	2020-09-29 08:23:51.822938454 -0700
+@@ -36,6 +36,10 @@
+ #include "sysemu/cpus.h"
+ #include "sysemu/replay.h"
+ 
++extern abi_ulong eclipser_entry_point;
++extern void eclipser_setup(void);
++extern void eclipser_log_bb(abi_ulong addr);
++
+ /* -icount align implementation. */
+ 
+ typedef struct SyncClocks {
+@@ -144,6 +148,11 @@
+     int tb_exit;
+     uint8_t *tb_ptr = itb->tc_ptr;
+ 
++    if(itb->pc == eclipser_entry_point) {
++      eclipser_setup();
++    }
++    eclipser_log_bb(itb->pc);
++
+     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
+                            "Trace %p [%d: " TARGET_FMT_lx "] %s\n",
+                            itb->tc_ptr, cpu->cpu_index, itb->pc,

@@ -1,7 +1,3 @@
-/* A variatn of cmp.c example, to test if Eclipser can handle programs that
- * have path explosion. Eclipser should not get stuck or raises exception, and
- * pass '(i3 == 0x61626364)' condition when enough time is given.
- */
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>

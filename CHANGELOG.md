@@ -1,5 +1,22 @@
 # Eclipser Change Log
 
+## v2.0
+
+* Simplify architecture by removing multiple input source fuzzing. This feature
+  has been supported for the comparison against KLEE.
+* Remove our own random fuzzing module, and support integration with AFL.
+* Fix QEMU instrumentation code (update to QEMU-2.10.0, fix bugs, optimize).
+* Add a feature to decide execution timeout automatically.
+* Clean up codes.
+* Update command line interface.
+* Update test examples.
+
+## v1.1
+
+* Fix initial seed set handling.
+* Use edge coverage instead of node coverage.
+* Fix the default parameters for maximum file/stdin length.
+
 ## v1.0
 
 * Stop polluting '/tmp/' directory and keep the intermediate files internally.

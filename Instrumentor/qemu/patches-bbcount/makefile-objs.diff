@@ -1,9 +1,0 @@
---- qemu-2.3.0-bbcount/linux-user/Makefile.objs.orig	2018-05-24 11:30:49.615769240 +0900
-+++ qemu-2.3.0-bbcount/linux-user/Makefile.objs	2018-05-23 17:47:35.165933727 +0900
-@@ -1,5 +1,5 @@
- obj-y = main.o syscall.o strace.o mmap.o signal.o \
--	elfload.o linuxload.o uaccess.o uname.o
-+	elfload.o linuxload.o uaccess.o uname.o chatkey.o
- 
- obj-$(TARGET_HAS_BFLT) += flatload.o
- obj-$(TARGET_I386) += vm86.o

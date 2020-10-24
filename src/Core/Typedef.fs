@@ -1,12 +1,48 @@
 namespace Eclipser
 
-open Utils
-
 type Hash = uint64
 
 type Signedness = Signed | Unsigned
 
 type Sign = Positive  | Negative | Zero
+
+/// Specifies which input source to fuzz.
+type InputSource =
+  /// Fuzz standard input source.
+  | StdInput
+  /// Fuzz file input source.
+  | FileInput of filepath: string
+
+/// Describes how to measure coverage in QEMU tracer for branch feedback.
+type CoverageMeasure =
+  | Ignore // Just collect branch information and ignore coverage.
+  | NonCumulative // Measure coverage as well, but without any side effect.
+  | Cumulative // Measure coverage as well, in cumulative manner.
+
+module CoverageMeasure =
+  let toEnum = function
+    | Ignore -> 1
+    | NonCumulative -> 2
+    | Cumulative -> 3
+
+/// Describes the gain of coverage.
+type CoverageGain =
+  | NoGain
+  | NewPath
+  | NewEdge
+
+/// Priority of found seed. A seed that increased edge coverage is assigned
+/// 'Favored' priority, while a seed that increased path coverage is assigned
+/// 'Normal' priority.
+type Priority = Favored | Normal
+
+module Priority =
+
+  let ofCoverageGain = function
+  | NoGain -> None
+  | NewPath -> Some Normal
+  | NewEdge -> Some Favored
+
 
 /// Architecture of target program to fuzz.
 type Arch = X86 | X64
@@ -21,52 +57,33 @@ module Arch =
     | "x64" -> X64
     | _ -> raise UnsupportedArchException
 
-/// Fuzzing modes that specify input source to fuzz.
-type FuzzMode =
-  /// Fuzz command line argument input source.
-  | ArgFuzz
-  /// Fuzz file input source.
-  | FileFuzz
-  /// Fuzz standard input source.
-  | StdinFuzz
-  /// Start by fuzzing command line argument, and then automatically identify
-  /// and fuzz standard/file input source.
-  | AutoFuzz
+/// Signal returned by program execution.
+type Signal =
+  | ERROR = -1
+  | NORMAL = 0
+  | SIGILL = 4
+  | SIGABRT = 6
+  | SIGFPE = 8
+  | SIGSEGV = 11
+  | SIGALRM = 14
 
-module FuzzMode =
+module Signal =
+  let isCrash signal =
+    match signal with
+    | Signal.SIGSEGV | Signal.SIGILL | Signal.SIGABRT-> true
+    | _ -> false
 
-  /// Convert a string into FuzzMode.
-  let ofString (str: string) =
-    match str.ToLower() with
-    | "arg" -> ArgFuzz
-    | "stdin" -> StdinFuzz
-    | "file" -> FileFuzz
-    | "auto" -> AutoFuzz
-    | _ -> printLine "Supported input sources : 'arg', 'stdin', 'file', 'auto'."
-           exit 1
+  let isSegfault signal =
+    signal = Signal.SIGSEGV
 
-/// Direction that the cursor of a 'Seed' should move toward.
-type Direction = Stay | Left | Right
+  let isIllegal signal =
+    signal = Signal.SIGILL
 
-/// Type of input source. Currently we support three input sources (argument,
-/// file, standard input).
-type InputKind = Args | File | StdIn
+  let isFPE signal =
+    signal = Signal.SIGFPE
 
-module InputKind =
-  /// For the given fuzzing mode, decide the initial input source to start with.
-  let ofFuzzMode = function
-    | ArgFuzz -> Args
-    | StdinFuzz -> StdIn
-    | FileFuzz -> File
-    | AutoFuzz -> Args
+  let isAbort signal =
+    signal = Signal.SIGABRT
 
-  /// Decides whether a sequence of multiple inputs is allowed.
-  let isSingularInput = function
-    | Args -> false
-    | StdIn -> true // Currently, consider only one-time standard input.
-    | File -> true // Currently, consider only one file input.
-
-/// Priority of found seed. A seed that increased edge coverage is assigned
-/// 'Favored' priority, while a seed that increased path coverage is assigned
-/// 'Normal' priority.
-type Priority = Favored | Normal
+  let isTimeout signal =
+    signal = Signal.SIGALRM

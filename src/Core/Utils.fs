@@ -11,21 +11,12 @@ let startTime = DateTime.Now
 
 let random = System.Random()
 
-let printNewline () = Console.WriteLine ""
-
 let printLine (str: string) = Console.WriteLine str
 
 let log fmt =
   let elapsed = DateTime.Now - startTime
   let timeStr = "[" + elapsed.ToString("dd\:hh\:mm\:ss") + "] "
   Printf.kprintf (fun str -> printLine <| timeStr + str) fmt
-
-let escapeString (str: string) =
-  str.Replace("\\", "\\\\").Replace("\"", "\\\"")
-
-let escapeWhiteSpace (str: string) =
-  let str = str.Replace("\n", "\\n").Replace("\r", "\\r")
-  str.Replace(" ", "\\s").Replace("\t", "\\t")
 
 // Auxiliary function for splitList().
 let rec private splitListAux n lst accum =
@@ -105,17 +96,14 @@ let assertFileExists file =
     printfn "Target file ('%s') does not exist" file
     exit 1
 
+/// Write a file, without throwing exception.
+let writeFile filePath content =
+  try System.IO.File.WriteAllBytes(filePath, content) with
+  | _ -> log "[Warning] Failed to write file '%s'" filePath
+
 /// Remove a file, without throwing exception.
 let removeFile file =
   try System.IO.File.Delete(file) with _ -> ()
-
-/// Remove a list of files, without throwing exception.
-let removeFiles files =
-  List.iter removeFile files
-
-/// Remove a directory, without throwing exception.
-let removeDir dir =
-  try System.IO.Directory.Delete(dir, recursive = true) with _ -> ()
 
 /// Create a directory if not exists.
 let createDirectoryIfNotExists dir =

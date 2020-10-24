@@ -1,0 +1,36 @@
+--- qemu-2.10.0-bbcount/linux-user/syscall.c.orig	2020-09-29 08:25:21.159543974 -0700
++++ qemu-2.10.0-bbcount/linux-user/syscall.c	2020-09-29 08:25:06.959447395 -0700
+@@ -116,6 +116,9 @@
+ 
+ #include "qemu.h"
+ 
++extern void eclipser_exit(void);
++extern void eclipser_detach(void);
++
+ #ifndef CLONE_IO
+ #define CLONE_IO                0x80000000      /* Clone io context */
+ #endif
+@@ -6354,6 +6357,7 @@
+         ret = fork();
+         if (ret == 0) {
+             /* Child Process.  */
++            eclipser_detach();
+             cpu_clone_regs(env, newsp);
+             fork_end(1);
+             /* There is a race condition here.  The parent process could
+@@ -7764,6 +7768,7 @@
+ #ifdef TARGET_GPROF
+         _mcleanup();
+ #endif
++        eclipser_exit();
+         gdb_exit(cpu_env, arg1);
+         _exit(arg1);
+         ret = 0; /* avoid warning */
+@@ -9820,6 +9825,7 @@
+ #ifdef TARGET_GPROF
+         _mcleanup();
+ #endif
++        eclipser_exit();
+         gdb_exit(cpu_env, arg1);
+         ret = get_errno(exit_group(arg1));
+         break;

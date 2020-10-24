@@ -1,6 +1,5 @@
-/* Ab example with custom strcmp() function that requires binary search. */
-
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -25,10 +24,8 @@ int main(int argc, char ** argv) {
   fd = open(argv[1], O_RDWR);
 
   read(fd, &i, sizeof(i));
-  //if (i * i == 0Xfffc0004) // 0xfffe ^ 2
-  //  printf("Found new path 1\n");
   if (i * i == 0x250b6984) // 0x6162 ^ 2
-    printf("Found new path 1\n");
+    printf("Found new path 1!\n");
 
   read(fd, &j, sizeof(j));
   j = ((j >> 24) & 0xff) | // move byte 3 to byte 0
@@ -36,12 +33,15 @@ int main(int argc, char ** argv) {
       ((j << 8) & 0xff0000) | // move byte 1 to byte 2
       ((j << 24) & 0xff000000); // byte 0 to byte 3
   if (j * j == 0x10A29504) // 0x4142 ^ 2
-    printf("Found new path 2\n");
+    printf("Found new path 2!\n");
 
   n = read(fd, buf, 8);
   buf[n] = '\0';
   if (my_strcmp(buf, "Good!") == 0)
-    printf("Found new path\n");
+    printf("Found new path 3!\n");
+
+  if (strcmp(buf, "Bad!") == 0)
+    printf("Found new path 4!\n");
 
   return 0;
 }

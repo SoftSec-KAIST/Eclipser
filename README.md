@@ -38,150 +38,80 @@ $ make
 
 # Usage
 
-- Basic options
+- Running with AFL
 
-The basic usage of Eclipser is as follow. Note that you should provide `fuzz`
-keyword before other options.
-
-```
-$ dotnet build/Eclipser.dll fuzz \
-    -p <target program path> -v <verbosity level> -t <timeout second> \
-    -o <output directory> --src <'arg'|'file'|'stdin'|'auto'>
-```
-
-This command will fuzz the specified target program for the given amount of
-time, and store the fuzzing outputs (i.e. test cases and crashes) into the
-output directory. The last argument `--src ...` specifies target program's input
-source to fuzz, and further explanation about this option is given below.
-
-- Fuzzing command line arguments of a target program
-
-By providing `--src arg` option to Eclipser, you can fuzz command-line argument
-input of the target program. You can specify the number of arguments and the
-maximum length of each argument string with `--maxarglen` option.
-
-For example, the following command will fuzz target program 'example.bin' by
-mutating command line argument inputs. A generated test input can have up to
-three argument strings (i.e. argc <= 3), and the length of the first argument
-string is limited up to 8 bytes, while the second and third arguments are
-confined to 4-bytes strings.
+Starting from v2.0, Eclipser only performs grey-box concolic testing for test
+case generation and relies on AFL to perform random-based fuzzing (for the
+context of this decision, refer to [Eclipser v2.0](#eclipser-v20) section
+below). Therefore, you should first launch AFL instances in parallel mode.
+Although it is possible to run Eclipser alone, it is intended only for simple
+testing and not for realistic fuzzing.
 
 ```
-$ dotnet build/Eclipser.dll fuzz \
-    -p example.bin -v 1 -t 10 -o outdir --src arg --maxarglen 8 4 4
+$ AFL_DIR/afl-fuzz -i <seed dir> -o <sync dir> -M <ID 1> \
+  -f <input file to fuzz> -Q -- <target program cmdline>
+$ AFL_DIR/afl-fuzz -i <seed dir> -o <sync dir> -S <ID 2> \
+  -f <input file to fuzz>  -Q -- <target program cmdline>
+$ dotnet ECLIPSER_DIR/build/Eclipser.dll \
+  -t <timeout (sec)> -i <seed dir (optional)> -s <sync dir> -o <output dir> \
+  -p <target program> --arg <target program cmdline> -f <input file to fuzz>
 ```
 
-- Fuzzing a file input of a target program
+We note that the output directory for Eclipser should be placed under the
+synchronization directory (e.g. `-s ../syncdir -o ../syncdir/eclipser-output`).
+AFL will automatically create an output directory under the synchronization
+directory, using its specified ID. This way, Eclipser and AFL will share test
+cases with each other. To obtain the final result of the fuzzing, retrieve all
+the test cases under `<sync dir>/*/queue/` and `<sync dir>/*/crashes/`.
 
-By providing `--src file` option to Eclipser, you can fuzz a file input of a
-target program. You can specify the command line argument of target program with
-`--initarg` option, and specify the input file name with `-f` option.
+Similarly to AFL, Eclipser will fuzz the file input specified by `-f` option, and
+fuzz the standard input when `-f` option is not provided. However, Eclipser does
+not support `@@` syntax used by AFL.
 
-For example, consider a target program that takes in input file via "--input"
-option. Using the following command, you can fuzz the file input of this program
-and limit the file input length up to 8 bytes. Currently we support only one
-file input.
+- Examples
 
-```
-$ dotnet build/Eclipser.dll fuzz \
-    -p example.bin -v 1 -t 10 -o outdir \
-    --src file --initarg "--input foo" -f foo --maxfilelen 8
-```
-
-You may also want to provide initial seed inputs for the fuzzing. You can use
-`-i <seed directory>` option to provide initial seed input files for the target
-program.
-
-- Fuzzing the standard input of a target program
-
-By providing `--src stdin` to Eclipser, you can fuzz the standard input of a
-target program. Currently, we assume a standard input to be a single string, and
-do not consider cases where a sequence of string is provided as a standard input
-stream of the target program.
-
-For example, the following command will fuzz target program 'example.bin' by
-mutating its standard input. The length of standard input is confined up to 8
-bytes.
-
-```
-$ dotnet build/Eclipser.dll fuzz \
-    -p example.bin -v 1 -t 10 -o outdir --src stdin --maxstdinlen 8
-```
-
-- Fuzzing multiple input sources.
-
-Eclipser also supports a mode that automatically identifies and fuzz input
-sources. When you provide `--src auto` option to Eclipser, it will first start
-by fuzzing command line argument of the target program. Then, it will trace
-system call invocations during the program execution, to identify the use of
-standard input or file input. Once identified, Eclipser will automatically fuzz
-these input sources as well. As in previous examples, you can specify the
-maximum lengths with `--max*` options.
-
-```
-$ dotnet build/Eclipser.dll fuzz \
-    -p example.bin -v 1 -t 10 -o outdir \
-    --src auto --maxarglen 8 4 4 --maxfilelen 8 --maxstdinlen 8
-```
-
-Note: Eclipser identifies a file input as an input source only if the file name
-matches one of the argument string. This means if a target program reads in a
-configuration file from a fixed path, this file will not be considered as a
-input source to fuzz in `--src auto` mode.
+You can find simple example programs and their fuzzing scripts in
+[examples](./examples) directory. An example script to run Eclipser with AFL can
+be found [here](examples/test_integerate.sh). Note that we create separate
+working directories for each AFL instance and Eclipser in this script. This is
+to prevent the instances from using the same input file path for fuzzing.
 
 - Other options for fuzzing
 
-You can get the full list of Eclipser's options and their detailed descriptions
-by running the following command.
+You can get the full list of Eclipser's options and their descriptions by
+running the following command.
 
 ```
-$ dotnet build/Eclipser.dll fuzz --help
+$ dotnet build/Eclipser.dll --help
 ```
 
-# Test case decoding utility
+# Eclipser v2.0
 
-Eclipser internally store test cases in its custom JSON format. For usability,
-we provide a utility that decodes these JSON format test cases in a specified
-directory.
+Originally, Eclipser had its own simplified random-based fuzzing module, instead
+of relying on AFL. This was to support fuzzing multiple input sources (e.g.
+command-line arguments, standard input, and file input) within a single fuzzer
+run. We needed this feature for the comparison against KLEE on Coreutils
+benchmark, which was one of the main experimental targets in our paper.
 
-For example, suppose that you fuzzed a target program with the following
-command.
+However, as Eclipser is more often compared with other fuzzing tools, we abandon
+this feature and focus on fuzzing a single input source, as most fuzzers do. We
+also largely updated the command line interface of Eclipser accordingly. We note
+that you can still checkout v1.0 code from our repository to reproduce the
+Coreutils experiment result.
 
-```
-$ dotnet build/Eclipser.dll fuzz -p example.bin -v 1 -t 10 -o outdir --src auto
-```
-
-Then, Eclipser will store generated test cases in `outdir/testcase`, and store
-found crash inputs in `outdir/crash`. Now, to decode the test cases, you can run
-the following command. Note the `decode` keyword is used in place of `fuzz`.
-
-```
-$ dotnet build/Eclipser.dll decode -i outdir/testcase -o decoded_testcase
-```
-
-Then, Eclipser will store the decoded raw string inputs in subdirectories, as
-shown below.
-
-```
-$ ls decoded_testcase
-decoded_args  decoded_files  decoded_paths  decoded_stdins
-$ xxd decoded_testcase/decoded_files/tc-0
-00000000: 4142 4242 4242 4242 4242 4242 4242 4242  ABBBBBBBBBBBBBBB
-$ xxd decoded_testcase/decoded_files/tc-1
-00000000: 6142 4242 4242 4242 4242 4242 4242 4242  aBBBBBBBBBBBBBBB
-(...)
-```
-
-# Examples
-
-You can find simple example programs, along with testing scripts to fuzz these
-programs, in [examples](./examples) directory.
+By focusing on fuzzing a single input source, we can now use AFL to perform
+random-based fuzzing. For this, from v2.0 Eclipser runs in parallel with AFL, as
+described above. This way, we can benefit from various features offered by AFL,
+such as source-based instrumentation, persistent mode, and deterministic mode.
+Still, the core architecture of Eclipser remains the same: it complements
+random-based fuzzing with our grey-box concolic testing technique.
 
 # Docker
 
 We also provide a Docker image to run the experiments in our paper, in
 [Eclipser-Artifact](https://github.com/SoftSec-KAIST/Eclipser-Artifact)
-repository.
+repository. Note that this image uses Eclipser v0.1, since the image was
+built for the artifact evaluation of ICSE 2019.
 
 # Supported Architectures
 
