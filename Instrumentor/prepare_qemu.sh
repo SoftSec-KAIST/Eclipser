@@ -106,15 +106,21 @@ echo "[+] Unpacking successful."
 
 echo "[*] Backup target files of patches-common/ (for later use)"
 cp qemu-${VERSION}/configure qemu-${VERSION}/configure.orig
+cp qemu-${VERSION}/accel/tcg/cpu-exec.c qemu-${VERSION}/accel/tcg/cpu-exec.c.orig
 cp qemu-${VERSION}/linux-user/elfload.c qemu-${VERSION}/linux-user/elfload.c.orig
 cp qemu-${VERSION}/util/memfd.c qemu-${VERSION}/util/memfd.c.orig
 cp qemu-${VERSION}/linux-user/signal.c qemu-${VERSION}/linux-user/signal.c.orig
+cp qemu-${VERSION}/linux-user/syscall.c qemu-${VERSION}/linux-user/syscall.c.orig
+cp qemu-${VERSION}/target/i386/helper.h qemu-${VERSION}/target/i386/helper.h.orig
 
 echo "[*] Applying common patches..."
 patch -p0 <patches-common/configure.diff || exit 1
+patch -p0 <patches-common/cpu-exec.diff || exit 1
 patch -p0 <patches-common/elfload.diff || exit 1
 patch -p0 <patches-common/memfd.diff || exit 1
 patch -p0 <patches-common/signal.diff || exit 1
+patch -p0 <patches-common/syscall.diff || exit 1
+patch -p0 <patches-common/target-helper.diff || exit 1
 
 cp -r "qemu-${VERSION}" "qemu-${VERSION}-coverage"
 cp -r "qemu-${VERSION}" "qemu-${VERSION}-branch"
@@ -125,10 +131,7 @@ echo "[*] Applying patches for coverage..."
 
 cp patches-coverage/afl-qemu-cpu-inl.h qemu-${VERSION}-coverage/accel/tcg/
 cp patches-coverage/eclipser.c qemu-${VERSION}-coverage/accel/tcg/
-patch -p0 <patches-coverage/cpu-exec.diff || exit 1
 patch -p0 <patches-coverage/makefile-objs.diff || exit 1
-patch -p0 <patches-coverage/syscall.diff || exit 1
-patch -p0 <patches-coverage/target-helper.diff || exit 1
 patch -p0 <patches-coverage/target-translate.diff || exit 1
 
 echo "[+] Patching done."
@@ -142,15 +145,12 @@ echo "[*] Applying patches for branch..."
 
 cp patches-branch/afl-qemu-cpu-inl.h qemu-${VERSION}-branch/
 cp patches-branch/eclipser.c qemu-${VERSION}-branch/tcg/
-patch -p0 <patches-branch/cpu-exec.diff || exit 1
 patch -p0 <patches-branch/makefile-target.diff || exit 1
-patch -p0 <patches-branch/syscall.diff || exit 1
 
 patch -p0 <patches-branch/optimize.diff || exit 1
 patch -p0 <patches-branch/tcg-op.diff || exit 1
 patch -p0 <patches-branch/tcg-opc.diff || exit 1
 patch -p0 <patches-branch/tcg-target.diff || exit 1
-patch -p0 <patches-branch/target-helper.diff || exit 1
 patch -p0 <patches-branch/target-translate.diff || exit 1
 
 echo "[+] Patching done."

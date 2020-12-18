@@ -8,23 +8,11 @@ cp qemu-${VERSION}-branch/afl-qemu-cpu-inl.h ./patches-branch/afl-qemu-cpu-inl.h
 
 cp qemu-${VERSION}-branch/tcg/eclipser.c ./patches-branch/eclipser.c
 
-cp qemu-${VERSION}/accel/tcg/cpu-exec.c \
-   qemu-${VERSION}-branch/accel/tcg/cpu-exec.c.orig
-diff -Naur qemu-${VERSION}-branch/accel/tcg/cpu-exec.c.orig \
-           qemu-${VERSION}-branch/accel/tcg/cpu-exec.c \
-           > patches-branch/cpu-exec.diff
-
 cp qemu-${VERSION}/Makefile.target \
    qemu-${VERSION}-branch/Makefile.target.orig
 diff -Naur qemu-${VERSION}-branch/Makefile.target.orig \
            qemu-${VERSION}-branch/Makefile.target \
            > patches-branch/makefile-target.diff
-
-cp qemu-${VERSION}/linux-user/syscall.c \
-   qemu-${VERSION}-branch/linux-user/syscall.c.orig
-diff -Naur qemu-${VERSION}-branch/linux-user/syscall.c.orig \
-           qemu-${VERSION}-branch/linux-user/syscall.c \
-           > patches-branch/syscall.diff
 
 cp qemu-${VERSION}/tcg/optimize.c \
    qemu-${VERSION}-branch/tcg/optimize.c.orig
@@ -49,12 +37,6 @@ cp qemu-${VERSION}/tcg/i386/tcg-target.inc.c \
 diff -Naur qemu-${VERSION}-branch/tcg/i386/tcg-target.inc.c.orig \
            qemu-${VERSION}-branch/tcg/i386/tcg-target.inc.c \
            > patches-branch/tcg-target.diff
-
-cp qemu-${VERSION}/target/i386/helper.h \
-   qemu-${VERSION}-branch/target/i386/helper.h.orig
-diff -Naur qemu-${VERSION}-branch/target/i386/helper.h.orig \
-           qemu-${VERSION}-branch/target/i386/helper.h \
-           > patches-branch/target-helper.diff
 
 cp qemu-${VERSION}/target/i386/translate.c \
    qemu-${VERSION}-branch/target/i386/translate.c.orig
