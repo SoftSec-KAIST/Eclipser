@@ -24,7 +24,7 @@ build_qemu () {
     cd qemu-${VERSION}-$1-x86 || exit 1
 
     CFLAGS="-O3" ./configure --disable-system --enable-linux-user \
-      --python=python2 --disable-gtk --disable-sdl --disable-vnc \
+      --python=`which python` --disable-gtk --disable-sdl --disable-vnc \
       --target-list="i386-linux-user" || exit 1
 
     echo "[+] Configuration complete."
