@@ -41,14 +41,6 @@ export_branch_patch() {
   cp qemu-${VERSION}-branch/target/i386/translate.c $TARG_DIR/target/i386/translate.c
 }
 
-export_bbcount_patch() {
-  TARG_DIR=./qemu-${VERSION}-bbcount-$1
-  cp qemu-${VERSION}-bbcount/eclipser.cc $TARG_DIR/
-  cp qemu-${VERSION}-bbcount/accel/tcg/cpu-exec.c $TARG_DIR/accel/tcg/cpu-exec.c
-  cp qemu-${VERSION}-bbcount/Makefile.target $TARG_DIR/Makefile.target
-  cp qemu-${VERSION}-bbcount/linux-user/syscall.c $TARG_DIR/linux-user/syscall.c
-}
-
 ##### Common patch
 
 # Recover original files.
@@ -68,8 +60,6 @@ export_common_patch "coverage" "x86"
 export_common_patch "coverage" "x64"
 export_common_patch "branch" "x86"
 export_common_patch "branch" "x64"
-export_common_patch "bbcount" "x86"
-export_common_patch "bbcount" "x64"
 
 ##### Patch coverage tracer
 
@@ -115,20 +105,3 @@ export_branch_patch "x64"
 
 # Cleanup
 rm -rf "qemu-${VERSION}-branch"
-
-### Patch the basic block count tracer
-
-# Copy qemu-${VERSION} into qemu-${VERSION}-bbcount, to apply patch.
-cp -r "qemu-${VERSION}" "qemu-${VERSION}-bbcount"
-
-# Patch
-cp patches-bbcount/eclipser.cc qemu-${VERSION}-bbcount/
-patch -p0 <patches-bbcount/cpu-exec.diff || exit 1
-patch -p0 <patches-bbcount/makefile-target.diff || exit 1
-patch -p0 <patches-bbcount/syscall.diff || exit 1
-
-export_bbcount_patch "x86"
-export_bbcount_patch "x64"
-
-# Cleanup
-rm -rf "qemu-${VERSION}-bbcount"

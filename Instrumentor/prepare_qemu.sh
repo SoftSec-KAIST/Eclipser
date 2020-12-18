@@ -93,13 +93,10 @@ echo "[*] Clean up directories..."
 rm -rf "qemu-${VERSION}" || exit 1
 rm -rf "qemu-${VERSION}-coverage" || exit 1
 rm -rf "qemu-${VERSION}-branch" || exit 1
-rm -rf "qemu-${VERSION}-bbcount" || exit 1
 rm -rf "qemu-${VERSION}-coverage-x86" || exit 1
 rm -rf "qemu-${VERSION}-coverage-x64" || exit 1
 rm -rf "qemu-${VERSION}-branch-x86" || exit 1
 rm -rf "qemu-${VERSION}-branch-x64" || exit 1
-rm -rf "qemu-${VERSION}-bbcount-x86" || exit 1
-rm -rf "qemu-${VERSION}-bbcount-x64" || exit 1
 
 echo "[*] Uncompressing archive..."
 
@@ -121,7 +118,6 @@ patch -p0 <patches-common/signal.diff || exit 1
 
 cp -r "qemu-${VERSION}" "qemu-${VERSION}-coverage"
 cp -r "qemu-${VERSION}" "qemu-${VERSION}-branch"
-cp -r "qemu-${VERSION}" "qemu-${VERSION}-bbcount"
 
 ### Patch for coverage tracer
 
@@ -161,16 +157,3 @@ echo "[+] Patching done."
 
 cp -r "qemu-${VERSION}-branch" "qemu-${VERSION}-branch-x86"
 mv "qemu-${VERSION}-branch" "qemu-${VERSION}-branch-x64"
-
-### Patch for basic block count tracer
-
-echo "[*] Applying patches for bbcount..."
-
-cp patches-bbcount/eclipser.cc qemu-${VERSION}-bbcount/
-patch -p0 <patches-bbcount/cpu-exec.diff || exit 1
-patch -p0 <patches-bbcount/makefile-target.diff || exit 1
-patch -p0 <patches-bbcount/syscall.diff || exit 1
-echo "[+] Patching done."
-
-cp -r "qemu-${VERSION}-bbcount" "qemu-${VERSION}-bbcount-x86"
-mv "qemu-${VERSION}-bbcount" "qemu-${VERSION}-bbcount-x64"

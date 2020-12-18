@@ -48,8 +48,4 @@ build_qemu branch
 mv "./qemu-trace" "../build/qemu-trace-branch-x64" || exit 1
 echo "[+] Successfully created 'qemu-trace-branch-x64'."
 
-build_qemu bbcount
-mv "./qemu-trace" "../build/qemu-trace-bbcount-x64" || exit 1
-echo "[+] Successfully created 'qemu-trace-bbcount-x64'."
-
 exit 0
