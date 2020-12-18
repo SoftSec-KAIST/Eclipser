@@ -1,6 +1,14 @@
---- qemu-2.3.0-feedback/linux-user/syscall.c.orig	2017-07-20 14:41:00.160771159 +0900
-+++ qemu-2.3.0-feedback/linux-user/syscall.c	2017-07-20 14:34:26.127522059 +0900
-@@ -115,6 +115,33 @@
+--- qemu-2.3.0-feedback/linux-user/syscall.c.orig	2020-12-18 02:26:41.269104352 -0800
++++ qemu-2.3.0-feedback/linux-user/syscall.c	2020-12-18 02:26:40.817111136 -0800
+@@ -51,6 +51,7 @@
+              size_t stack_size, int flags, void *arg, ...);
+ #endif
+ #include <sys/socket.h>
++#include <linux/sockios.h>
+ #include <sys/un.h>
+ #include <sys/uio.h>
+ #include <sys/poll.h>
+@@ -115,6 +116,33 @@
  
  #include "qemu.h"
  
@@ -34,7 +42,26 @@
  #define CLONE_NPTL_FLAGS2 (CLONE_SETTLS | \
      CLONE_PARENT_SETTID | CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)
  
-@@ -227,7 +254,22 @@
+@@ -204,15 +232,9 @@
+ #define TARGET_NR__llseek TARGET_NR_llseek
+ #endif
+ 
+-#ifdef __NR_gettid
+-_syscall0(int, gettid)
+-#else
+-/* This is a replacement for the host gettid() and must return a host
+-   errno. */
+-static int gettid(void) {
+-    return -ENOSYS;
+-}
+-#endif
++#define __NR_sys_gettid __NR_gettid
++_syscall0(int, sys_gettid)
++
+ #ifdef __NR_getdents
+ _syscall3(int, sys_getdents, uint, fd, struct linux_dirent *, dirp, uint, count);
+ #endif
+@@ -227,7 +249,22 @@
  _syscall3(int,sys_rt_sigqueueinfo,int,pid,int,sig,siginfo_t *,uinfo)
  _syscall3(int,sys_syslog,int,type,char*,bufp,int,len)
  #if defined(TARGET_NR_tgkill) && defined(__NR_tgkill)
@@ -58,7 +85,7 @@
  #endif
  #if defined(TARGET_NR_tkill) && defined(__NR_tkill)
  _syscall2(int,sys_tkill,int,tid,int,sig)
-@@ -846,7 +888,7 @@
+@@ -846,7 +883,7 @@
  {
      abi_ulong target_rlim_swap;
      rlim_t result;
@@ -67,7 +94,7 @@
      target_rlim_swap = tswapal(target_rlim);
      if (target_rlim_swap == TARGET_RLIM_INFINITY)
          return RLIM_INFINITY;
-@@ -854,7 +896,7 @@
+@@ -854,7 +891,7 @@
      result = target_rlim_swap;
      if (target_rlim_swap != (rlim_t)result)
          return RLIM_INFINITY;
@@ -76,7 +103,7 @@
      return result;
  }
  
-@@ -862,13 +904,13 @@
+@@ -862,13 +899,13 @@
  {
      abi_ulong target_rlim_swap;
      abi_ulong result;
@@ -92,7 +119,7 @@
      return result;
  }
  
-@@ -1183,9 +1225,9 @@
+@@ -1183,9 +1220,9 @@
      abi_ulong target_cmsg_addr;
      struct target_cmsghdr *target_cmsg;
      socklen_t space = 0;
@@ -104,7 +131,7 @@
          goto the_end;
      target_cmsg_addr = tswapal(target_msgh->msg_control);
      target_cmsg = lock_user(VERIFY_READ, target_cmsg_addr, msg_controllen, 1);
-@@ -1255,7 +1297,7 @@
+@@ -1255,7 +1292,7 @@
      socklen_t space = 0;
  
      msg_controllen = tswapal(target_msgh->msg_controllen);
@@ -113,7 +140,7 @@
          goto the_end;
      target_cmsg_addr = tswapal(target_msgh->msg_control);
      target_cmsg = lock_user(VERIFY_WRITE, target_cmsg_addr, msg_controllen, 0);
-@@ -4293,7 +4335,7 @@
+@@ -4293,7 +4330,7 @@
      }
      unlock_user_struct(target_ldt_info, ptr, 1);
  
@@ -122,7 +149,7 @@
          ldt_info.entry_number > TARGET_GDT_ENTRY_TLS_MAX)
             return -TARGET_EINVAL;
      seg_32bit = ldt_info.flags & 1;
-@@ -4371,7 +4413,7 @@
+@@ -4371,7 +4408,7 @@
      lp = (uint32_t *)(gdt_table + idx);
      entry_1 = tswap32(lp[0]);
      entry_2 = tswap32(lp[1]);
@@ -131,7 +158,7 @@
      read_exec_only = ((entry_2 >> 9) & 1) ^ 1;
      contents = (entry_2 >> 10) & 3;
      seg_not_present = ((entry_2 >> 15) & 1) ^ 1;
-@@ -4387,8 +4429,8 @@
+@@ -4387,8 +4424,8 @@
          (read_exec_only << 3) | (limit_in_pages << 4) |
          (seg_not_present << 5) | (useable << 6) | (lm << 7);
      limit = (entry_1 & 0xffff) | (entry_2  & 0xf0000);
@@ -142,7 +169,16 @@
          ((entry_2 & 0xff) << 16);
      target_ldt_info->base_addr = tswapal(base_addr);
      target_ldt_info->limit = tswap32(limit);
-@@ -4572,6 +4614,7 @@
+@@ -4461,7 +4498,7 @@
+     cpu = ENV_GET_CPU(env);
+     thread_cpu = cpu;
+     ts = (TaskState *)cpu->opaque;
+-    info->tid = gettid();
++    info->tid = sys_gettid();
+     cpu->host_tid = info->tid;
+     task_settid(ts);
+     if (info->child_tidptr)
+@@ -4572,6 +4609,7 @@
          ret = fork();
          if (ret == 0) {
              /* Child Process.  */
@@ -150,7 +186,19 @@
              rcu_after_fork();
              cpu_clone_regs(env, newsp);
              fork_end(1);
-@@ -5561,6 +5604,7 @@
+@@ -4582,9 +4620,9 @@
+                mapping.  We can't repeat the spinlock hack used above because
+                the child process gets its own copy of the lock.  */
+             if (flags & CLONE_CHILD_SETTID)
+-                put_user_u32(gettid(), child_tidptr);
++                put_user_u32(sys_gettid(), child_tidptr);
+             if (flags & CLONE_PARENT_SETTID)
+-                put_user_u32(gettid(), parent_tidptr);
++                put_user_u32(sys_gettid(), parent_tidptr);
+             ts = (TaskState *)cpu->opaque;
+             if (flags & CLONE_SETTLS)
+                 cpu_set_tls (env, newtls);
+@@ -5561,6 +5599,7 @@
  #ifdef TARGET_GPROF
          _mcleanup();
  #endif
@@ -158,7 +206,7 @@
          gdb_exit(cpu_env, arg1);
          _exit(arg1);
          ret = 0; /* avoid warning */
-@@ -5749,10 +5793,21 @@
+@@ -5749,10 +5788,21 @@
              }
              if (!(p = lock_user_string(arg1)))
                  goto execve_efault;
@@ -184,7 +232,26 @@
  
          execve_efault:
              ret = -TARGET_EFAULT;
-@@ -7422,6 +7477,7 @@
+@@ -5901,12 +5951,13 @@
+ #ifdef TARGET_NR_stime /* not on alpha */
+     case TARGET_NR_stime:
+         {
+-            time_t host_time;
+-            if (get_user_sal(host_time, arg1))
+-                goto efault;
+-            ret = get_errno(stime(&host_time));
++            struct timespec ts;
++            ts.tv_nsec = 0;
++            if (get_user_sal(ts.tv_sec, arg1)) {
++                return -TARGET_EFAULT;
++            }
++            return get_errno(clock_settime(CLOCK_REALTIME, &ts));
+         }
+-        break;
+ #endif
+     case TARGET_NR_ptrace:
+         goto unimplemented;
+@@ -7422,6 +7473,7 @@
  #ifdef TARGET_GPROF
          _mcleanup();
  #endif
@@ -192,7 +259,7 @@
          gdb_exit(cpu_env, arg1);
          ret = get_errno(exit_group(arg1));
          break;
-@@ -8316,7 +8372,7 @@
+@@ -8316,7 +8368,7 @@
          break;
  #if defined(TARGET_NR_fchownat)
      case TARGET_NR_fchownat:
@@ -201,7 +268,7 @@
              goto efault;
          ret = get_errno(fchownat(arg1, p, low2highuid(arg3),
                                   low2highgid(arg4), arg5));
-@@ -8801,7 +8857,7 @@
+@@ -8801,7 +8853,7 @@
          case TARGET_F_GETLK64:
  #ifdef TARGET_ARM
              if (((CPUARMState *)cpu_env)->eabi) {
@@ -210,7 +277,7 @@
                      goto efault;
                  fl.l_type = tswap16(target_efl->l_type);
                  fl.l_whence = tswap16(target_efl->l_whence);
-@@ -8812,7 +8868,7 @@
+@@ -8812,7 +8864,7 @@
              } else
  #endif
              {
@@ -219,7 +286,7 @@
                      goto efault;
                  fl.l_type = tswap16(target_fl->l_type);
                  fl.l_whence = tswap16(target_fl->l_whence);
-@@ -8825,7 +8881,7 @@
+@@ -8825,7 +8877,7 @@
  	    if (ret == 0) {
  #ifdef TARGET_ARM
                  if (((CPUARMState *)cpu_env)->eabi) {
@@ -228,7 +295,7 @@
                          goto efault;
                      target_efl->l_type = tswap16(fl.l_type);
                      target_efl->l_whence = tswap16(fl.l_whence);
-@@ -8836,7 +8892,7 @@
+@@ -8836,7 +8888,7 @@
                  } else
  #endif
                  {
@@ -237,7 +304,7 @@
                          goto efault;
                      target_fl->l_type = tswap16(fl.l_type);
                      target_fl->l_whence = tswap16(fl.l_whence);
-@@ -8852,7 +8908,7 @@
+@@ -8852,7 +8904,7 @@
          case TARGET_F_SETLKW64:
  #ifdef TARGET_ARM
              if (((CPUARMState *)cpu_env)->eabi) {
@@ -246,7 +313,7 @@
                      goto efault;
                  fl.l_type = tswap16(target_efl->l_type);
                  fl.l_whence = tswap16(target_efl->l_whence);
-@@ -8863,7 +8919,7 @@
+@@ -8863,7 +8915,7 @@
              } else
  #endif
              {
@@ -255,3 +322,12 @@
                      goto efault;
                  fl.l_type = tswap16(target_fl->l_type);
                  fl.l_whence = tswap16(target_fl->l_whence);
+@@ -8897,7 +8949,7 @@
+         break;
+ #endif
+     case TARGET_NR_gettid:
+-        ret = get_errno(gettid());
++        ret = get_errno(sys_gettid());
+         break;
+ #ifdef TARGET_NR_readahead
+     case TARGET_NR_readahead:
