@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cp -r qemu-2.3.0-feedback-x64 qemu-2.3.0-feedback
+
 cp qemu-2.3.0-feedback/tcg/chatkey.c ./patches-feedback/chatkey.c
 
 cp qemu-2.3.0-feedback/afl-qemu-cpu-inl.h ./patches-feedback/afl-qemu-cpu-inl.h

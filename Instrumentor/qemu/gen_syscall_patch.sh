@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cp -r qemu-2.3.0-syscall-x64 qemu-2.3.0-syscall
+
 cp qemu-2.3.0-syscall/linux-user/chatkey.c ./patches-syscall/chatkey.c
 
 cp qemu-2.3.0/linux-user/syscall.c qemu-2.3.0-syscall/linux-user/syscall.c.orig

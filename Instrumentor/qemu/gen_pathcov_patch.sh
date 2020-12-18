@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cp -r qemu-2.3.0-pathcov-x64 qemu-2.3.0-pathcov
+
 cp qemu-2.3.0-pathcov/chatkey.cc ./patches-pathcov/chatkey.cc
 
 cp qemu-2.3.0-pathcov/afl-qemu-cpu-inl.h ./patches-pathcov/afl-qemu-cpu-inl.h
