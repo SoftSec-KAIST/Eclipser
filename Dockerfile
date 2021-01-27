@@ -1,5 +1,4 @@
-# For ubuntu 20.04, (1) fix the URL of .Net Core installation, and (2) checkout
-# 'dev' branch of Eclipser.
+# For other Ubuntu versions, you should also fix the URL of .NET Core install
 FROM ubuntu:18.04
 
 WORKDIR /root/
@@ -23,6 +22,8 @@ RUN wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsof
     dpkg -i packages-microsoft-prod.deb && \
     apt-get update && apt-get -yy install dotnet-sdk-2.1 && \
     rm -f packages-microsoft-prod.deb
+# Disallow sending telemtry data from .net
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # Create a user and switch account
 RUN useradd -ms /bin/bash test
@@ -32,5 +33,4 @@ WORKDIR /home/test
 # Download and build Eclipser
 RUN git clone https://github.com/SoftSec-KAIST/Eclipser.git && \
     cd Eclipser && \
-    git checkout v2.0 && \
     make
