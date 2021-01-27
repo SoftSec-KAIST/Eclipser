@@ -24,7 +24,7 @@ build_qemu () {
     cd qemu-${VERSION}-$1-x86 || exit 1
 
     CFLAGS="-O3" ./configure --disable-system --enable-linux-user \
-      --python=python2 --disable-gtk --disable-sdl --disable-vnc \
+      --python=`which python` --disable-gtk --disable-sdl --disable-vnc \
       --target-list="i386-linux-user" || exit 1
 
     echo "[+] Configuration complete."
@@ -47,9 +47,5 @@ echo "[+] Successfully created 'qemu-trace-coverage-x86'."
 build_qemu branch
 mv "./qemu-trace" "../build/qemu-trace-branch-x86" || exit 1
 echo "[+] Successfully created 'qemu-trace-branch-x86'."
-
-build_qemu bbcount
-mv "./qemu-trace" "../build/qemu-trace-bbcount-x86" || exit 1
-echo "[+] Successfully created 'qemu-trace-bbcount-x86'."
 
 exit 0

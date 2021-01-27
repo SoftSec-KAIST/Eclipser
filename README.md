@@ -18,7 +18,7 @@ performs program instrumentation based on QEMU code.
 $ sudo vim /etc/apt/sources.list # Uncomment the lines starting with 'deb-src'.
 $ sudo apt-get update
 $ sudo apt-get build-dep qemu
-$ sudo apt-get install libtool libtool-bin wget automake autoconf bison gdb
+$ sudo apt-get install libtool libtool-bin wget automake autoconf bison gdb python
 ```
 
 2. Install .NET Core
