@@ -108,10 +108,11 @@ random-based fuzzing with our grey-box concolic testing technique.
 
 # Docker
 
-We also provide a Docker image to run the experiments in our paper, in
-[Eclipser-Artifact](https://github.com/SoftSec-KAIST/Eclipser-Artifact)
-repository. Note that this image uses Eclipser v0.1, since the image was
-built for the artifact evaluation of ICSE 2019.
+To run the latest version of Eclipser, please use the [Dockerfile](./Dockerfile)
+provided in this repository.
+If you are interested in reproducing the results of ICSE 2019 paper, you can
+refer to [Eclipser-Artifact](https://github.com/SoftSec-KAIST/Eclipser-Artifact)
+repository, which uses Eclipser v0.1.
 
 # Supported Architectures
 
