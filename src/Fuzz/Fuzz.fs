@@ -167,5 +167,5 @@ let run args =
   let queueDir = sprintf "%s/.internal" opt.OutDir
   let greyConcQueue, randFuzzQueue = Initialize.initQueue opt queueDir
   log "[*] Fuzzing starts"
-  setTimer opt
+  setTimer opt queueDir
   fuzzLoop opt greyConcQueue randFuzzQueue
