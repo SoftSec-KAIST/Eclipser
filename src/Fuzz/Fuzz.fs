@@ -131,7 +131,7 @@ let fuzzingTimer timeoutSec queueDir = async {
   exit (0)
 }
 
-let private terminator timelimitSec = async {
+let private terminator timelimitSec queueDir = async {
   let timespan = System.TimeSpan(0, 0, 0, timelimitSec)
   System.Threading.Thread.Sleep(timespan)
   log "===== Statistics ====="
@@ -144,10 +144,10 @@ let private terminator timelimitSec = async {
   exit (0)
 }
 
-let private setTimer opt =
+let private setTimer opt queueDir =
   if opt.Timelimit > 0 then
     log "[*] Time limit : %d sec" opt.Timelimit
-    Async.Start (terminator opt.Timelimit)
+    Async.Start (terminator opt.Timelimit queueDir)
   else
     log "[*] No time limit given, run infinitely"
 
