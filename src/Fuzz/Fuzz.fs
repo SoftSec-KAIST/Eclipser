@@ -131,6 +131,24 @@ let fuzzingTimer timeoutSec queueDir = async {
   exit (0)
 }
 
+let private terminator timelimitSec = async {
+  let timespan = System.TimeSpan(0, 0, 0, timelimitSec)
+  System.Threading.Thread.Sleep(timespan)
+  log "[*] Fuzzing timeout expired."
+  log "===== Statistics ====="
+  TestCase.printStatistics ()
+  log "Done, clean up and exit..."
+  Executor.cleanup ()
+  exit (0)
+}
+
+let private setTimer opt =
+  if opt.Timelimit > 0 then
+    log "[*] Time limit : %d sec" opt.Timelimit
+    Async.Start (terminator opt.Timelimit)
+  else
+    log "[*] No time limit given, run infinitely"
+
 let run args =
   let opt = parseFuzzOption args
   validateFuzzOption opt
@@ -147,5 +165,5 @@ let run args =
   let queueDir = sprintf "%s/.internal" opt.OutDir
   let greyConcQueue, randFuzzQueue = Initialize.initQueue opt queueDir
   log "[*] Fuzzing starts"
-  Async.Start (fuzzingTimer opt.Timelimit queueDir)
+  setTimer opt
   fuzzLoop opt greyConcQueue randFuzzQueue
