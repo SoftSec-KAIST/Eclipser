@@ -134,11 +134,13 @@ let fuzzingTimer timeoutSec queueDir = async {
 let private terminator timelimitSec = async {
   let timespan = System.TimeSpan(0, 0, 0, timelimitSec)
   System.Threading.Thread.Sleep(timespan)
-  log "[*] Fuzzing timeout expired."
   log "===== Statistics ====="
-  TestCase.printStatistics ()
+  Manager.printStatistics ()
   log "Done, clean up and exit..."
-  Executor.cleanup ()
+  Executor.cleanUpForkServer ()
+  Executor.cleanUpSharedMem ()
+  Executor.cleanUpFiles ()
+  removeDir queueDir
   exit (0)
 }
 
