@@ -81,7 +81,7 @@ let private makeSteppedItems pr seed =
 
 // Decides how to share the resource with AFL instances.
 let private scheduleWithAFL opt =
-  if opt.SyncDir <> "" then Scheduler.checkAndReserveTime opt
+  if opt.SyncDir <> "" && opt.SingleCore then Scheduler.checkAndReserveTime opt
 
 // Sychronize the seed queue with AFL instances.
 let private syncWithAFL opt seedQueue n =

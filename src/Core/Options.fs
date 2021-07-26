@@ -10,6 +10,7 @@ type FuzzerCLI =
   | [<AltCommandLine("-i")>] [<Unique>] InputDir of path: string
   | [<AltCommandLine("-o")>] [<Mandatory>] [<Unique>] OutputDir of path: string
   | [<AltCommandLine("-s")>] [<Unique>] SyncDir of path: string
+  | [<Unique>] SingleCore
   // Options related to the target program execution.
   | [<AltCommandLine("-p")>] [<Mandatory>] [<Unique>] Program of path: string
   | [<AltCommandLine("-e")>] [<Unique>] ExecTimeout of millisec:uint64
@@ -29,6 +30,7 @@ with
       | InputDir _ -> "Directory containing initial seeds"
       | OutputDir _ -> "Directory to store testcase outputs"
       | SyncDir _ -> "Directory shared with AFL instances"
+      | SingleCore -> "Assume single core and adjust core usage with AFL"
       | Program _ -> "Target program for test case generation with fuzzing"
       | ExecTimeout _ -> "Execution timeout (ms) for a fuzz run (default: 500)"
       | Architecture _ -> "Target program architecture (x86|x64) (default: x64)"
@@ -47,6 +49,7 @@ type FuzzOption = {
   InputDir          : string
   OutDir            : string
   SyncDir           : string
+  SingleCore        : bool
   // Options related to the target program execution.
   TargetProg        : string
   ExecTimeout       : uint64
@@ -69,11 +72,12 @@ let parseFuzzOption (args: string array) =
     InputDir = r.GetResult(<@ InputDir @>, defaultValue = "")
     OutDir = r.GetResult (<@ OutputDir @>)
     SyncDir = r.GetResult (<@ SyncDir @>, defaultValue = "")
+    SingleCore = r.Contains(<@ SingleCore @>) // Multicore if not provided.
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
     ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = 0UL)
     Architecture = r.GetResult(<@ Architecture @>, defaultValue = "X64")
                    |> Arch.ofString
-    ForkServer = not (r.Contains(<@ NoForkServer @>)) // Enable by default.
+    ForkServer = not (r.Contains(<@ NoForkServer @>)) // Enable if not provided.
     Arg = r.GetResult (<@ Arg @>, defaultValue = "")
     FuzzSource = if not (r.Contains(<@ Filepath @>)) then StdInput
                  else FileInput (r.GetResult (<@ Filepath @>))
