@@ -2,6 +2,7 @@ namespace Eclipser
 
 open System.Collections.Generic
 open System
+open Config
 open Utils
 open Options
 open BytesUtils
@@ -52,8 +53,7 @@ module GreySolver =
 
   let solveAsString seed opt targPt linEq accRes =
     let initStrs = List.map (bigIntToBytes BE 1) linEq.Solutions
-    let maxLen = Seed.queryUpdateBound seed Right
-    List.fold (tryStrSol seed opt maxLen targPt) accRes initStrs
+    List.fold (tryStrSol seed opt MAX_STR_SOLVE_LEN targPt) accRes initStrs
 
   let solutionCache = new HashSet<bigint>()
 
@@ -115,8 +115,8 @@ module GreySolver =
     | _, _, None -> accRes // Target point disappeared, halt.
 
   let solveMonotonic seed opt accRes (targPt, mono) =
-    let maxLenR = Seed.queryUpdateBound seed Right
-    let maxLenL = Seed.queryUpdateBound seed Left
+    let maxLenR = MAX_MONO_SOLVE_LEN
+    let maxLenL = min seed.CursorPos MAX_MONO_SOLVE_LEN
     // Try big endian first, and stop if any result is found.
     let res = binarySearch seed opt Right maxLenR targPt [] mono
     if not (List.isEmpty res) then res @ accRes

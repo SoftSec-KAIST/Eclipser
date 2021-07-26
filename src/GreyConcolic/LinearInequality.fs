@@ -79,7 +79,7 @@ module LinearInequality =
     match ctx.ByteDir with
     | Stay -> failwith "Byte cursor cannot be staying"
     | Left -> (* Cursor was moving left, and tryByte is rightmost byte. *)
-      let len = Array.length ctx.Bytes
+      let len = ctx.Bytes.Length
       let bytes = ctx.Bytes.[(len - chunkSize + 1) .. (len - 1)]
       Array.append bytes [| tryByte |]
     | Right -> (* Cursor was moving right, and tryByte is leftmost byte. *)
@@ -92,7 +92,7 @@ module LinearInequality =
      *)
     let cmpSize = brInfo1.OpSize
     let sign = if brInfo1.BrType = SignedSize then Signed else Unsigned
-    if Array.length ctx.Bytes < chunkSize - 1 then failwith "Invalid size"
+    if chunkSize > ctx.Bytes.Length + 1 then failwith "Invalid size"
     let x1 = bytesToBigInt endian (concatBytes chunkSize brInfo1 ctx)
     let x2 = bytesToBigInt endian (concatBytes chunkSize brInfo2 ctx)
     let x3 = bytesToBigInt endian (concatBytes chunkSize brInfo3 ctx)
@@ -130,8 +130,8 @@ module LinearInequality =
     // Try to interpret the branch information in the following order
     let types = [(BE, 1); (BE, 2); (LE, 2); (BE, 4); (LE, 4); (BE, 8); (LE, 8)]
     // Filter out invalid chunk size
-    let maxLen = Array.length ctx.Bytes + 1
-    let types = List.filter (fun (endian, size) -> size <= maxLen) types
+    let maxChunkLen = ctx.Bytes.Length + 1
+    let types = List.filter (fun (endian, size) -> size <= maxChunkLen) types
     findAux ctx types branchInfoTriple
 
   let find ctx brInfoTriple =
@@ -142,8 +142,7 @@ module LinearInequality =
       let sign = if brInfo.BrType = SignedSize then Signed else Unsigned
       Some { TightInequality = tightIneqOpt
              LooseInequality = looseIneqOpt
-             Sign = sign
-           }
+             Sign = sign }
 
   let toString ineq =
     let tightIneq = ineq.TightInequality
@@ -158,4 +157,3 @@ module LinearInequality =
       Printf.sprintf "(Tight) %s\n(Loose) %s"
         (LinearEquation.toString tightIneq)
         (SimpleLinearInequality.toString looseIneq)
-

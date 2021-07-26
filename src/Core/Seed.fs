@@ -92,49 +92,18 @@ module Seed =
     | Right -> seed.ByteVals.Length - seed.CursorPos
     | Left -> seed.CursorPos + 1
 
-  // Auxiliary function for queryUpdateBound()
-  let private queryUpdateBoundLeft (byteVals: ByteVal []) byteCursor =
-    let byteVals' =
-      if byteCursor - MAX_CHUNK_LEN >= 0
-      then byteVals.[byteCursor - MAX_CHUNK_LEN .. byteCursor]
-      else byteVals.[ .. byteCursor]
-    // We use an heuristic to bound update until the adjacent *fixed* ByteVal.
-    match Array.tryFindIndexBack ByteVal.isFixed byteVals' with
-    | None -> byteVals'.Length
-    | Some idx -> byteVals'.Length - idx - 1
-
-  // Auxiliary function for queryUpdateBound()
-  let private queryUpdateBoundRight (byteVals: ByteVal []) byteCursor =
-    let byteVals' =
-      if byteCursor + MAX_CHUNK_LEN < byteVals.Length
-      then byteVals.[byteCursor .. byteCursor + MAX_CHUNK_LEN]
-      else byteVals.[byteCursor .. ]
-    // We use an heuristic to bound update until the adjacent *fixed* ByteVal.
-    match Array.tryFindIndex ByteVal.isFixed byteVals' with
-    | None -> MAX_CHUNK_LEN
-    | Some idx -> idx
-
-  /// Find the maximum length that can be updated for grey-box concolic testing.
-  let queryUpdateBound seed direction =
-    let byteVals = seed.ByteVals
-    let byteCursor = seed.CursorPos
-    match direction with
-    | Stay -> failwith "queryUpdateBound() cannot be called with 'Stay'"
-    | Left -> queryUpdateBoundLeft byteVals byteCursor
-    | Right -> queryUpdateBoundRight byteVals byteCursor
-
   /// Get adjacent concrete byte values, toward the given direction.
   let queryNeighborBytes seed direction =
     let byteVals = seed.ByteVals
-    let byteCursor = seed.CursorPos
+    let cursor = seed.CursorPos
     match direction with
     | Stay -> failwith "queryNeighborBytes() cannot be called with 'Stay'"
     | Right ->
-      let upperBound = min (byteVals.Length - 1) (byteCursor + MAX_CHUNK_LEN)
-      Array.map ByteVal.getConcreteByte byteVals.[byteCursor + 1 .. upperBound]
+      let upperBound = min (byteVals.Length - 1) (cursor + MAX_LIN_SOLVE_LEN)
+      Array.map ByteVal.getConcreteByte byteVals.[cursor + 1 .. upperBound]
     | Left ->
-      let lowerBound = max 0 (byteCursor - MAX_CHUNK_LEN)
-      Array.map ByteVal.getConcreteByte byteVals.[lowerBound .. byteCursor - 1]
+      let lowerBound = max 0 (cursor - MAX_LIN_SOLVE_LEN)
+      Array.map ByteVal.getConcreteByte byteVals.[lowerBound .. cursor - 1]
 
   (************************ Content update functions ************************)
 

@@ -20,8 +20,13 @@ let SLEEP_FACTOR_MAX = 4.0
 let EXEC_TIMEOUT_MIN = 400UL
 let EXEC_TIMEOUT_MAX = 4000UL
 
-/// Maximum length of chunk to try in grey-box concolic testing.
-let MAX_CHUNK_LEN = 10
+/// Maximum chunk length to try for solving linear branch conditions.
+let MAX_LIN_SOLVE_LEN = 8
+/// Maximum chunk length to try for solving monotonic branch conditions.
+let MAX_MONO_SOLVE_LEN = 12
+/// Maximum chunk length to try for solving non-monotonic string compare
+/// branch conditions.
+let MAX_STR_SOLVE_LEN = 48
 
 /// The length of each input during the initialization of a seed. If the user
 /// explicitly provided initial seed inputs, this parameter will not be used.
