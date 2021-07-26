@@ -9,7 +9,7 @@ let private reconsiderCandidates opt seeds =
 
 let run seed opt =
   let curByteVal = Seed.getCurByteVal seed
-  let minByte, maxByte = ByteVal.getMinMax curByteVal seed.Source
+  let minByte, maxByte = ByteVal.getMinMax curByteVal
   if minByte = maxByte then
     let seedStr = Seed.toString seed
     failwithf "Cursor pointing to Fixed ByteVal %s" seedStr

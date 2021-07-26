@@ -30,10 +30,7 @@ module Seed =
   /// Initialize a seed for the specified input source, with the specified
   /// maximum length.
   let make src =
-    let initByte = match src with
-                   | StdInput -> 65uy // Character 'A'.
-                   | FileInput _ -> 0uy // NULL byte.
-    let bytes = Array.init INIT_INPUT_LEN (fun _ -> initByte)
+    let bytes = Array.init INIT_INPUT_LEN (fun _ -> 0uy) // Use NULL byte.
     let byteVals = Array.map ByteVal.newByteVal bytes
     { ByteVals = byteVals; CursorPos = 0; CursorDir = Right; Source = src }
 

@@ -53,10 +53,8 @@ module ByteVal =
       sprintf "%02x@(%02x-%02x)" ((low + upper) / 2uy) low upper
     | Sampled b -> sprintf "%02x*" b
 
-  let getMinMax byteVal inputSrc =
+  let getMinMax byteVal =
     match byteVal with
-    | Untouched _ | Undecided _ | Sampled _ ->
-      if inputSrc = StdInput then (0uy, 127uy) (* Printable bytes *)
-      else (0uy, 255uy) (* All bytes *)
+    | Untouched _ | Undecided _ | Sampled _ -> (0uy, 255uy)
     | Fixed x -> (x, x)
     | Interval (low, upper) -> (low, upper)
