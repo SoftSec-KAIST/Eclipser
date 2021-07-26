@@ -117,20 +117,6 @@ let rec fuzzLoop opt concQ randQ =
                 else randQ
     fuzzLoop opt concQ randQ
 
-let fuzzingTimer timeoutSec queueDir = async {
-  let timespan = System.TimeSpan(0, 0, 0, timeoutSec)
-  System.Threading.Thread.Sleep(timespan )
-  printLine "Fuzzing timeout expired."
-  log "===== Statistics ====="
-  Manager.printStatistics ()
-  log "Done, clean up and exit..."
-  Executor.cleanUpForkServer ()
-  Executor.cleanUpSharedMem ()
-  Executor.cleanUpFiles ()
-  removeDir queueDir
-  exit (0)
-}
-
 let private terminator timelimitSec queueDir = async {
   let timespan = System.TimeSpan(0, 0, 0, timelimitSec)
   System.Threading.Thread.Sleep(timespan)
