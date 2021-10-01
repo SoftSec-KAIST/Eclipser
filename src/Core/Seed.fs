@@ -36,26 +36,35 @@ type Seed = {
 module Seed =
 
   /// Initialize a seed with specified maximum lengths.
-  let make inputSrc argMaxLens fileMaxLen stdInMaxLen =
-    { Args = InputSeq.make Args argMaxLens
-      StdIn = InputSeq.make StdIn [stdInMaxLen]
-      File = { Path = Unknown; Content = InputSeq.make File [fileMaxLen] }
-      SourceCursor = inputSrc }
+  let make fuzzMode maxArgLens maxFileLen maxStdInLen =
+    let initSrc = InputKind.decideInitSrc fuzzMode
+    { Args = InputSeq.make Args maxArgLens
+      StdIn = InputSeq.make StdIn [maxStdInLen]
+      File = { Path = Unknown; Content = InputSeq.make File [maxFileLen] }
+      SourceCursor = initSrc }
 
   /// Initialize a seed with the specified content bytes, input source and
   /// maximum length.
-  let makeWith inputSrc maxLen (initBytes: byte[])  =
-    let initInput = Input.makeWith initBytes maxLen
-    let initInputSeq =
-      { Inputs = [| initInput |]; InputCursor = 0; CursorDir = Right }
-    let argInput = if inputSrc = Args then initInputSeq else InputSeq.empty
-    let fileContent = if inputSrc = File then initInputSeq else InputSeq.empty
-    let fileInput = { Path = Unknown; Content = fileContent }
-    let stdIn = if inputSrc = StdIn then initInputSeq else InputSeq.empty
+  let makeWith fuzzMode seedSrc maxArgLens maxFileLen maxStdInLen initBytes =
+    let initSrc = InputKind.decideInitSrc fuzzMode
+    let initInputSeq maxLen =
+      { Inputs = [| Input.makeWith maxLen initBytes |]
+        InputCursor = 0
+        CursorDir = Right }
+    let argInput = if seedSrc = Args then initInputSeq (List.head maxArgLens)
+                   elif fuzzMode = AutoFuzz then InputSeq.make Args maxArgLens
+                   else InputSeq.empty
+    let fContent = if seedSrc = File then initInputSeq maxFileLen
+                   elif fuzzMode = AutoFuzz then InputSeq.make File [maxFileLen]
+                   else InputSeq.empty
+    let fileInput = { Path = Unknown; Content = fContent }
+    let stdIn = if seedSrc = StdIn then initInputSeq maxStdInLen
+                elif fuzzMode = AutoFuzz then InputSeq.make StdIn [maxStdInLen]
+                else InputSeq.empty
     { Args = argInput
       StdIn = stdIn
       File = fileInput
-      SourceCursor = inputSrc }
+      SourceCursor = initSrc }
 
   /// Concretize input file path into a string.
   let concretizeFilepath seed =
@@ -185,16 +194,29 @@ module Seed =
     let newInputSeq = InputSeq.setCurInput curInputSeq input
     setCurInputSeq seed newInputSeq
 
+  // Auxiliary function for setArgs().
+  let rec private combine maxLens initArgs =
+    match maxLens, initArgs with
+    | [], [] -> []
+    | [], arg :: tailArgs -> // initArgs is longer than maxLens
+      (Array.length arg, arg) :: combine [] tailArgs
+    | len :: tailLens, [] -> // maxLens is longer than initArgs
+      (len, Array.replicate len 0uy) :: combine tailLens []
+    | len :: tailLens, arg :: tailArgs ->
+      (max len (Array.length arg), arg) :: combine tailLens tailArgs
+
   /// Update argument input sequence with given command-line argument string.
   /// Note that maximum length of each input is set with the length of each
   /// argument string.
-  let setArgs seed (cmdLine: string) =
+  let setArgs seed maxLens (cmdLine: string) =
     let delim = [| ' '; '\t'; '\n' |]
     let initArgs = cmdLine.Split(delim, StringSplitOptions.RemoveEmptyEntries)
-    let argInputs =
-      Array.map strToBytes initArgs
-      |> Array.filter (fun arg -> Array.length arg <> 0)
-      |> Array.map (fun bytes -> Input.makeWith bytes (Array.length bytes))
+                   |> Array.toList
+                   |> List.map strToBytes
+                   |> List.filter (fun arg -> Array.length arg <> 0)
+    let argInputs = combine maxLens initArgs
+                    |> Array.ofList
+                    |> Array.map (fun (l, a) -> Input.makeWith l a)
     let argInputSeq = { Inputs = argInputs; InputCursor = 0; CursorDir = Right }
     {seed with Seed.Args = argInputSeq }
 

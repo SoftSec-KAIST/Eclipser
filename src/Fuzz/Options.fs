@@ -12,6 +12,7 @@ type FuzzerCLI =
   | [<Mandatory>] [<Unique>] Src of string
   // Options related to seed initialization
   | [<AltCommandLine("-i")>] [<Unique>] InitSeedsDir of path: string
+  | [<Unique>] InitSeedSrc of string
   | [<Unique>] MaxArgLen of int list
   | [<Unique>] MaxFileLen of int
   | [<Unique>] MaxStdInLen of int
@@ -40,6 +41,8 @@ with
                  "standard input and file inputs."
       // Options related to seed initialization
       | InitSeedsDir _ -> "Directory containing initial seeds."
+      | InitSeedSrc _ -> "Input source to use the initial seeds for " +
+                         "(<arg|file|stdin>)."
       | MaxArgLen _ -> "Maximum len of cmdline argument (default: [8byte])"
       | MaxFileLen _ -> "Maximum len of file input (default: 1MB)"
       | MaxStdInLen _ -> "Maximum len of standard input (default: 1MB)"
@@ -70,6 +73,7 @@ type FuzzOption = {
   Architecture      : Arch
   // Options related to seed
   InitSeedsDir      : string
+  InitSeedSrc       : InputKind
   MaxArgLen         : int list
   MaxFileLen        : int
   MaxStdInLen       : int
@@ -82,15 +86,24 @@ type FuzzOption = {
   RandFuzzOnly      : bool
 }
 
+let private printInitSeedSrcUsage() =
+  printLine "It seems '--src=auto' and '--initseeddir' (-i) are given."
+  printLine "In such case, '--initseedsrc' option is required, too."
+
 let parseFuzzOption (args: string array) =
   let cmdPrefix = "dotnet Eclipser.dll fuzz"
   let parser = ArgumentParser.Create<FuzzerCLI> (programName = cmdPrefix)
   let r = try parser.Parse(args) with
           :? Argu.ArguParseException -> printLine (parser.PrintUsage()); exit 1
+  let fuzzMode = FuzzMode.ofString (r.GetResult(<@ Src @>))
+  let seedSrcStr = r.GetResult(<@ InitSeedSrc @>, defaultValue = "")
+  let seedSrc = if seedSrcStr <> "" then InputKind.ofString seedSrcStr
+                elif fuzzMode <> AutoFuzz then InputKind.decideInitSrc fuzzMode
+                else (printInitSeedSrcUsage(); exit 1)
   { Verbosity = r.GetResult (<@ Verbose @>, defaultValue = 0)
     OutDir = r.GetResult (<@ OutputDir @>)
     Timelimit = r.GetResult (<@ Timelimit @>)
-    FuzzMode = FuzzMode.ofString (r.GetResult(<@ Src @>))
+    FuzzMode = fuzzMode
     // Options related to program execution
     TargetProg = System.IO.Path.GetFullPath(r.GetResult (<@ Program @>))
     ExecTimeout = r.GetResult (<@ ExecTimeout @>, defaultValue = DefaultExecTO)
@@ -99,6 +112,7 @@ let parseFuzzOption (args: string array) =
                    |> Arch.ofString
     // Options related to seed
     InitSeedsDir = r.GetResult(<@ InitSeedsDir @>, defaultValue = "")
+    InitSeedSrc = seedSrc
     MaxArgLen = r.GetResult (<@ MaxArgLen @>, defaultValue = [8])
     MaxFileLen = r.GetResult (<@ MaxFileLen @>, defaultValue = 1048576)
     MaxStdInLen = r.GetResult (<@ MaxStdInLen @>, defaultValue = 1048576)
@@ -115,7 +129,9 @@ let validateFuzzOption opt =
     printLine "Should specify the file input path in file fuzzing mode."
     exit 1
   if opt.GreyConcolicOnly && opt.RandFuzzOnly then
-    printLine "Cannot specify '--greyconcoliconly' and 'randfuzzonly' together."
+    printLine "Cannot specify --greyconcoliconly and --randfuzzonly together."
     exit 1
   if opt.NSpawn < 3 then
     failwith "Should provide N_spawn greater than or equal to 3"
+  if opt.InitSeedSrc = Args && List.length opt.MaxArgLen <> 1 then
+    failwith "When --initseedsrc is 'arg', --maxarglen must be singleton."

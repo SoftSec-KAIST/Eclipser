@@ -42,7 +42,7 @@ module FuzzMode =
     | "stdin" -> StdinFuzz
     | "file" -> FileFuzz
     | "auto" -> AutoFuzz
-    | _ -> printLine "Supported input sources : 'arg', 'stdin', 'file', 'auto'."
+    | _ -> printLine "Supported fuzz mode: 'arg', 'stdin', 'file', 'auto'."
            exit 1
 
 /// Direction that the cursor of a 'Seed' should move toward.
@@ -53,12 +53,20 @@ type Direction = Stay | Left | Right
 type InputKind = Args | File | StdIn
 
 module InputKind =
-  /// For the given fuzzing mode, decide the initial input source to start with.
-  let ofFuzzMode = function
+
+  let decideInitSrc = function
     | ArgFuzz -> Args
     | StdinFuzz -> StdIn
     | FileFuzz -> File
     | AutoFuzz -> Args
+
+  let ofString (str: string) =
+    match str.ToLower() with
+    | "arg" -> Args
+    | "stdin" -> StdIn
+    | "file" -> File
+    | _ -> printLine "Supported input kinds : 'arg', 'stdin', 'file'"
+           exit 1
 
   /// Decides whether a sequence of multiple inputs is allowed.
   let isSingularInput = function

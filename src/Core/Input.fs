@@ -35,7 +35,7 @@ module Input =
     { ByteVals = byteVals; MaxLen = maxLen; ByteCursor = 0; CursorDir = Right }
 
   /// Initialize an input with provided byte array content.
-  let makeWith bytes maxLen =
+  let makeWith maxLen bytes =
     // Do not allow empty content.
     if Array.length bytes = 0 then failwith "Input.makeWith() with empty bytes"
     let byteVals = Array.map ByteVal.newByteVal bytes

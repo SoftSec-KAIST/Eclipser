@@ -1,40 +1,35 @@
 module Eclipser.Initialize
 
-open System
-open Config
 open Utils
 open Options
 
 let createSeeds opt =
   let maxArgLens = List.filter (fun len -> len > 0) opt.MaxArgLen
-  let inputSrc = InputKind.ofFuzzMode opt.FuzzMode
   let initSeedWithNArgs n =
     let (maxArgLens', _) = splitList n maxArgLens
-    Seed.make inputSrc maxArgLens' opt.MaxFileLen opt.MaxStdInLen
+    Seed.make opt.FuzzMode maxArgLens' opt.MaxFileLen opt.MaxStdInLen
   List.ofSeq { 1 .. List.length maxArgLens }
   |> List.map initSeedWithNArgs
   |> List.rev // Prioritize seed with more # of args, for better exploration.
 
 let importSeeds opt =
-  let inputSrc = InputKind.ofFuzzMode opt.FuzzMode
-  let maxLen =
-    match inputSrc with
-    | Args when List.length opt.MaxArgLen = 1 -> List.head opt.MaxArgLen
-    | Args -> failwith "Invalid max length option on argument input"
-    | File -> opt.MaxFileLen
-    | StdIn -> opt.MaxStdInLen
-  System.IO.Directory.EnumerateFiles opt.InitSeedsDir // Obtain file list
-  |> List.ofSeq // Convert list to array
-  |> List.map System.IO.File.ReadAllBytes // Read in file contents
-  |> List.map (Seed.makeWith inputSrc maxLen) // Create seed with content
+  let fuzzMode = opt.FuzzMode
+  let seedSrc = opt.InitSeedSrc
+  let maxArgLen = opt.MaxArgLen
+  let maxFileLen = opt.MaxFileLen
+  let maxStdinLen = opt.MaxStdInLen
+  System.IO.Directory.EnumerateFiles opt.InitSeedsDir
+  |> List.ofSeq
+  |> List.map System.IO.File.ReadAllBytes
+  |> List.map (Seed.makeWith fuzzMode seedSrc maxArgLen maxFileLen maxStdinLen)
 
 let initializeSeeds opt =
-  let initArg = opt.InitArg
+  let maxArgLen = opt.MaxArgLen
+  let cmd = opt.InitArg
   let fpath = opt.Filepath
-  let seedDir = opt.InitSeedsDir
   // Initialize seeds, and set the initial argument/file path of each seed
-  if seedDir = "" then createSeeds opt else importSeeds opt
-  |> List.map (fun s -> if initArg <> "" then Seed.setArgs s initArg else s)
+  if opt.InitSeedsDir = "" then createSeeds opt else importSeeds opt
+  |> List.map (fun s -> if cmd <> "" then Seed.setArgs s maxArgLen cmd else s)
   |> List.map (fun s -> if fpath <> "" then Seed.setFilepath s fpath else s)
 
 let findInputSrc opt seed =

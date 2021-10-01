@@ -1,6 +1,5 @@
 module Eclipser.Fuzz
 
-open System
 open Config
 open Utils
 open Options
